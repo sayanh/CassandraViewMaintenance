@@ -1,6 +1,7 @@
 package de.tum.viewmaintenance.Operations;
 
 import com.datastax.driver.core.Row;
+import de.tum.viewmaintenance.trigger.TriggerRequest;
 import de.tum.viewmaintenance.view_table_structure.Table;
 
 import java.util.List;
@@ -48,18 +49,26 @@ public class PreAggOperation extends GenericOperation {
     }
 
     @Override
-    public boolean insertTrigger() {
+    public boolean insertTrigger(TriggerRequest triggerRequest) {
         return false;
     }
 
     @Override
-    public boolean updateTrigger() {
+    public boolean updateTrigger(TriggerRequest triggerRequest) {
         return false;
     }
 
     @Override
-    public boolean deleteTrigger() {
+    public boolean deleteTrigger(TriggerRequest triggerRequest) {
         return false;
     }
 
+    @Override
+    public String toString() {
+        return "PreAggOperation{" +
+                "\n deltaTableRecord=" + deltaTableRecord +
+                ",\n inputViewTables=" + inputViewTables +
+                ",\n operationViewTables=" + operationViewTables +
+                '}';
+    }
 }

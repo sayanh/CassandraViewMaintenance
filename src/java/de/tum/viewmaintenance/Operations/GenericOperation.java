@@ -1,6 +1,7 @@
 package de.tum.viewmaintenance.Operations;
 
 import com.datastax.driver.core.Row;
+import de.tum.viewmaintenance.trigger.TriggerRequest;
 import de.tum.viewmaintenance.view_table_structure.Table;
 
 import java.util.List;
@@ -14,17 +15,17 @@ public abstract class GenericOperation {
     private List<Table> inputViewTable;
     private List<Table> operationViewTable;
 
-    public void processOperation(String type) {
+    public void processOperation(String type, TriggerRequest triggerRequest) {
         if (type.equalsIgnoreCase("insert")) {
-            insertTrigger();
+            insertTrigger(triggerRequest);
         } else if (type.equalsIgnoreCase("update")) {
-            updateTrigger();
+            updateTrigger(triggerRequest);
         } else if (type.equalsIgnoreCase("delete")) {
-            deleteTrigger();
+            deleteTrigger(triggerRequest);
         }
     }
-    public abstract boolean insertTrigger();
-    public abstract boolean updateTrigger();
-    public abstract boolean deleteTrigger();
+    public abstract boolean insertTrigger(TriggerRequest triggerRequest);
+    public abstract boolean updateTrigger(TriggerRequest triggerRequest);
+    public abstract boolean deleteTrigger(TriggerRequest triggerRequest);
 
 }

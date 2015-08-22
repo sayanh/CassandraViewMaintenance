@@ -1,6 +1,7 @@
 package de.tum.viewmaintenance.Operations;
 
 import com.datastax.driver.core.Row;
+import de.tum.viewmaintenance.trigger.TriggerRequest;
 import de.tum.viewmaintenance.view_table_structure.Table;
 import net.sf.jsqlparser.expression.Expression;
 import org.slf4j.Logger;
@@ -77,18 +78,27 @@ public class AggOperation extends GenericOperation {
     }
 
     @Override
-    public boolean insertTrigger() {
+    public boolean insertTrigger(TriggerRequest triggerRequest) {
         return false;
     }
 
     @Override
-    public boolean updateTrigger() {
+    public boolean updateTrigger(TriggerRequest triggerRequest) {
         return false;
     }
 
     @Override
-    public boolean deleteTrigger() {
+    public boolean deleteTrigger(TriggerRequest triggerRequest) {
         return false;
     }
 
+    @Override
+    public String toString() {
+        return "AggOperation{" +
+                "\n deltaTableRecord=" + deltaTableRecord +
+                ",\n inputViewTables=" + inputViewTables +
+                ",\n operationViewTables=" + operationViewTables +
+                ",\n havingExpression=" + havingExpression +
+                '}';
+    }
 }

@@ -63,6 +63,9 @@ public class PreAggViewTable implements ViewTable {
         List<Column> newColumnsForNewTable = new ArrayList<>();
         for (Function function: functionExpressions) {
             Column tempCol = new Column();
+            logger.debug("### Checking --- the value of function name {}", function.getName());
+            logger.debug("### Checking --- the value of function name without quotes {}", function.getName()
+            .replace("\"",""));
             tempCol.setName(function.getName());
             if (function.getName().equalsIgnoreCase("SUM")) {
                 tempCol.setDataType("int");

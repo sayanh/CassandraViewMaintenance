@@ -53,48 +53,37 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
      * This is not a view table as the other standalone views.
      * This in turn produces a series of views.
      **/
-    public TriggerResponse processSQLViewMaintenance(String type, Table viewConfig, Row deltaTableViewRow) throws IOException, JSQLParserException {
+    public TriggerResponse processSQLViewMaintenance(String type, Table viewConfig,
+                                                     Row deltaTableViewRow, TriggerRequest triggerRequest)
+            throws IOException, JSQLParserException {
         logger.debug("ProcessSQLViewMaintenace | with type: {} , viewConfig {} , deltaTableViewRow {} ", type, viewConfig, deltaTableViewRow);
         /**
-         *  Decides the view table names, structure.
+         *  Decides and creates the view table names, structure.
          * */
-//        boolean isCreationViewTableCompleted = false;
 
         if (operationQueue.size() == 0) {
             createSQLTables(viewConfig, deltaTableViewRow);
         }
 
-//        processTriggersForViewMaintenance(type);
+
+        /**
+         * View Maintenance Process starts
+         * **/
+        processTriggersForViewMaintenance(type, triggerRequest);
 
         TriggerResponse response = new TriggerResponse();
         response.setIsSuccess(true);
         return response;
     }
 
-    private void processTriggersForViewMaintenance(String type) {
-        logger.debug("#### processTriggersForViewMaintenance ###");
-        for (GenericOperation operation: operationQueue){
-//            if (operation instanceof WhereOperation) {
-//                operation = (WhereOperation)operation;
-//                operation.processOperation(type);
-//            } else if (operation instanceof PreAggOperation) {
-//                operation = (PreAggOperation)operation;
-//                operation.processOperation(type);
-//            } else if (operation instanceof AggOperation) {
-//                operation = (AggOperation)operation;
-//                operation.processOperation(type);
-//            } else if (operation instanceof ReverseJoinOperation) {
-//                operation = (ReverseJoinOperation)operation;
-//                operation.processOperation(type);
-//            } else if (operation instanceof InnerJoinOperation) {
-//                operation = (InnerJoinOperation)operation;
-//                operation.processOperation(type);
-//            } else if (operation instanceof ResultViewOperation) {
-//                operation = (ResultViewOperation)operation;
-//                operation.processOperation(type);
-//            }
+    private void processTriggersForViewMaintenance(String type, TriggerRequest triggerRequest) {
+        logger.debug("#### processTriggersForViewMaintenance ### " +
+                "Available Operations are #####");
 
-            operation.processOperation(type);
+        for (GenericOperation operation: operationQueue){
+            logger.debug("### Checking - Operation class = {}", operation);
+
+            operation.processOperation(type, triggerRequest);
         }
     }
 
@@ -190,6 +179,8 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
                     whereViewTable.createInMemory(whereTablesCreated);
                 }
                 WhereOperation whereOperation = WhereOperation.getInstance(deltaTableViewRow, null, whereTablesCreated);
+                whereOperation.setWhereExpression(expression);
+                whereOperation.setViewConfig(viewConfig);
                 operationQueue.add(whereOperation);
                 logger.debug("### After adding where operation in operationQueue :: " + operationQueue);
             }
@@ -370,16 +361,19 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
                 resultViewTable.materialize();
 
             ResultViewOperation resultViewOperation = null;
-            if (operationsInvolved.containsValue("having")) {
+            if (operationsInvolved.containsKey("having")) {
                 resultViewOperation = ResultViewOperation.getInstance(deltaTableViewRow,
                         aggViewTable.getTables(), resultTableCreated);
-            } else if (operationsInvolved.containsValue("groupBy")){
+            } else if (operationsInvolved.containsKey("groupBy")){
+                logger.debug("### Result operation depends on where and join");
                 resultViewOperation = ResultViewOperation.getInstance(deltaTableViewRow,
                         preAggViewTable.getTables(), resultTableCreated);
-            } else if (operationsInvolved.containsValue("join")){
+            } else if (operationsInvolved.containsKey("join")){
+                logger.debug("### Result operation depends on where and join");
                 resultViewOperation = ResultViewOperation.getInstance(deltaTableViewRow,
                         innerJoinViewTable.getTables(), resultTableCreated);
-            } else if (operationsInvolved.containsValue("where")){
+            } else if (operationsInvolved.containsKey("where")){
+                logger.debug("### Result operation depends on where");
                 resultViewOperation = ResultViewOperation.getInstance(deltaTableViewRow,
                         whereViewTable.getTables(), resultTableCreated);
             }
@@ -392,6 +386,7 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
 //        }
 
         return resultViewTable.getTables();
+
     }
 
 

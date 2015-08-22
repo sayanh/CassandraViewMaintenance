@@ -56,7 +56,7 @@ public class WhereViewTable implements ViewTable {
         logger.debug("###### Creating table for where clause #########");
         List<Table> tablesCreated = new ArrayList<>();
         Set<String> tableNames = new HashSet<>();
-        whereSubExpressions = parseWhereExpression(this.getWhereExpressions());
+        whereSubExpressions = ViewMaintenanceUtilities.parseWhereExpression(whereExpression);
         logger.debug("### Where sub expressions ### " + whereSubExpressions);
         Map<String, Map<String, ColumnDefinition>> baseTablesDefinitionsMap = new HashMap<>();
         // Get unique table names from the where clause
@@ -150,6 +150,15 @@ public class WhereViewTable implements ViewTable {
     }
 
     @Override
+    public String toString() {
+        return "WhereViewTable{" +
+                "tables=" + tables +
+                ", whereSubExpressions=" + whereSubExpressions +
+                ", shouldBeMaterialized=" + shouldBeMaterialized +
+                '}';
+    }
+
+    @Override
     public boolean shouldBeMaterialized() {
         return shouldBeMaterialized;
     }
@@ -157,65 +166,5 @@ public class WhereViewTable implements ViewTable {
     public void setShouldBeMaterialized(boolean shouldBeMaterialized) {
         this.shouldBeMaterialized = shouldBeMaterialized;
     }
-
-    private List<Expression> parseWhereExpression(Expression whereExpression) {
-
-        if (whereExpression != null && (!(whereExpression instanceof AndExpression) && !(whereExpression instanceof OrExpression))) {
-            List<Expression> temp = new ArrayList<>();
-            temp.add(whereExpression);
-            return temp;
-        }
-
-        List<Expression> whereExpressions = new ArrayList<>();
-        if (whereExpression instanceof AndExpression) {
-            AndExpression andExpression = (AndExpression) whereExpression;
-
-            if (andExpression.getLeftExpression() instanceof AndExpression ||
-                    andExpression.getLeftExpression() instanceof OrExpression) {
-                for (Expression exp : parseWhereExpression(andExpression.getLeftExpression())) {
-                    whereExpressions.add(exp);
-                }
-            } else {
-                whereExpressions.add(andExpression.getLeftExpression());
-            }
-
-            if (andExpression.getRightExpression() instanceof AndExpression ||
-                    andExpression.getRightExpression() instanceof OrExpression) {
-                for (Expression exp : parseWhereExpression(andExpression.getRightExpression())) {
-                    whereExpressions.add(exp);
-                }
-            } else {
-                whereExpressions.add(andExpression.getRightExpression());
-            }
-
-        } else if (whereExpression instanceof OrExpression) {
-            OrExpression orExpression = (OrExpression) whereExpression;
-
-            if (orExpression.getLeftExpression() instanceof OrExpression ||
-                    orExpression.getLeftExpression() instanceof AndExpression) {
-                for (Expression exp : parseWhereExpression(orExpression.getLeftExpression())) {
-                    whereExpressions.add(exp);
-                }
-            } else {
-                whereExpressions.add(orExpression.getLeftExpression());
-            }
-
-            if (orExpression.getRightExpression() instanceof OrExpression ||
-                    orExpression.getRightExpression() instanceof AndExpression) {
-                for (Expression exp : parseWhereExpression(orExpression.getRightExpression())) {
-                    whereExpressions.add(exp);
-                }
-            } else {
-                whereExpressions.add(orExpression.getRightExpression());
-            }
-
-        }
-
-        return whereExpressions;
-
-    }
-
-
-
 
 }

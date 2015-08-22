@@ -138,6 +138,8 @@ public class ReverseJoinViewTable implements ViewTable {
                 if(checkPresenceOfColumnInDifferentTable(table.getKey(), columnDefinitionEntry.getValue().name + "",
                         baseTablesDefinitionsMap)) {
                     column.setName(columnDefinitionEntry.getValue().name + "" + "_" + table.getKey().split("\\.")[1]); // Key contains schema.table
+                } else {
+                    column.setName(columnDefinitionEntry.getValue().name.toString());
                 }
 
                 column.setDataType(ViewMaintenanceUtilities
@@ -164,6 +166,7 @@ public class ReverseJoinViewTable implements ViewTable {
             }
             for (Map.Entry<String, ColumnDefinition> columnDefinitionEntry: table.getValue().entrySet()) {
                 if (columnDefinitionEntry.getValue().name.toString().equalsIgnoreCase(columnName)){
+                    logger.debug(" Column {} exists in other table as well!!", columnName);
                     return true;
                 }
             }

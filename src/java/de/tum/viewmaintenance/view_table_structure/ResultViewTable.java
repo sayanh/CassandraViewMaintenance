@@ -56,7 +56,7 @@ public class ResultViewTable implements ViewTable {
 //                    listSelectItems.add(columnDefinition.name.toString());
                 de.tum.viewmaintenance.view_table_structure.Column column = new de.tum.viewmaintenance.view_table_structure.Column();
                 column.setName(columnDefinition.name.toString());
-                column.setDataType(ViewMaintenanceUtilities.getJavaTypeFromCassandraType(columnDefinition.type.toString()));
+                column.setDataType(ViewMaintenanceUtilities.getCQL3DataTypeFromCassandraInternalDataType(columnDefinition.type.toString()));
                 column.setIsPrimaryKey(columnDefinition.isPartitionKey());
                 columns.add(column);
 
@@ -171,12 +171,13 @@ public class ResultViewTable implements ViewTable {
 
                             if (!isPrimaryKeyCalculated) {
                                 // Assumption: After aggregate there cannot be any column projection
-                                logger.debug("### Aggregate key is not added as it is not there in select items");
+                                logger.debug("### Aggregate key is not added as it is not there in select items!!!");
+                                logger.debug("### It is added here as a PK and with a temp suffix !!!!");
                                 de.tum.viewmaintenance.view_table_structure.Column primaryKeyCol = new de.tum.viewmaintenance.view_table_structure.Column();
                                 primaryKeyCol.setDataType(ViewMaintenanceUtilities
                                         .getCQL3DataTypeFromCassandraInternalDataType(mapDesc
                                                 .get(colNameForFunctionWithTableArr[1])
-                                                .name
+                                                .type
                                                 .toString()));
 
                                 primaryKeyCol.setName(colNameForFunctionWithTableArr[1] + "_temp");

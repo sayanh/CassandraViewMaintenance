@@ -35,6 +35,7 @@ public class AggViewTable implements ViewTable{
         List<Table> newTablesCreated = new ArrayList<>();
         Table newViewTable = new Table();
         newViewTable.setName(TABLE_PREFIX);
+        newViewTable.setKeySpace(viewConfig.getKeySpace());
         newViewTable.setColumns(inputPreAggTableStruc.getColumns());
         newTablesCreated.add(newViewTable);
         logger.debug("### AggViewTable structure created as :: " + newTablesCreated );

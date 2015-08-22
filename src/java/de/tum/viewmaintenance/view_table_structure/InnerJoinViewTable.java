@@ -35,6 +35,7 @@ public class InnerJoinViewTable implements ViewTable {
         List<Table> tablesCreated = new ArrayList<>();
         Table newViewTable = new Table();
         newViewTable.setName(inputReverseJoinTableStruc.getName().replaceAll("reverse", "inner"));
+        newViewTable.setKeySpace(viewConfig.getKeySpace());
         newViewTable.setColumns(inputReverseJoinTableStruc.getColumns());
         tablesCreated.add(newViewTable);
         logger.debug("***** Newly created table for reverse join :: " + newViewTable);

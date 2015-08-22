@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.ArrayList;
 import java.util.List;
 
 public class CassandraClientUtilities {
@@ -104,6 +105,18 @@ public class CassandraClientUtilities {
         return true;
     }
 
+    /**
+     * Deletes a table when the inputs are the keyspace and table name
+     *
+     * **/
+
+    public static boolean deleteTable(Cluster cluster, String keyspace, String tableName){
+        Table tempTable = new Table();
+        tempTable.setKeySpace(keyspace);
+        tempTable.setName(tableName);
+        return deleteTable(cluster, tempTable);
+    }
+
     /*
     * This method deletes a table from a Cassandra instance
     */
@@ -113,7 +126,7 @@ public class CassandraClientUtilities {
         try {
             session = cluster.connect();
             StringBuffer query = new StringBuffer();
-            query.append("delete table " + table.getKeySpace() + "." + table.getName() + ";");
+            query.append("drop table " + table.getKeySpace() + "." + table.getName() + ";");
 
             System.out.println("Final query = " + query);
             results = session.execute(query.toString());
@@ -272,6 +285,37 @@ public class CassandraClientUtilities {
         return  result;
     }
 
+
+    static Table createDeltaViewTable(Table baseTable) {
+        Table viewTable = new Table();
+        viewTable.setName(baseTable.getName() + "_deltaView");
+        viewTable.setKeySpace(baseTable.getKeySpace());
+        List<Column> columns = baseTable.getColumns();
+        List<Column> viewTableCols = new ArrayList<>();
+        System.out.println("columns size = " + columns.size());
+        for (int i = 0; i < columns.size(); i++) {
+            Column col = columns.get(i);
+            System.out.println("working on col = " + col.getName());
+            Column viewCol = new Column();
+            if (col.isPrimaryKey()) {
+                viewCol.setName(col.getName());
+                viewCol.setIsPrimaryKey(col.isPrimaryKey());
+
+            } else {
+                Column viewCol_cur = new Column();
+                viewCol_cur.setName(col.getName() + "_cur");
+                viewCol.setName(col.getName() + "_last");
+                viewCol_cur.setDataType(col.getDataType());
+                viewTableCols.add(viewCol_cur);
+
+            }
+
+            viewCol.setDataType(col.getDataType());
+            viewTableCols.add(viewCol);
+        }
+        viewTable.setColumns(viewTableCols);
+        return viewTable;
+    }
 
 
 }

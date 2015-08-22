@@ -1,6 +1,7 @@
 package de.tum.viewmaintenance.Operations;
 
 import com.datastax.driver.core.Row;
+import de.tum.viewmaintenance.trigger.TriggerRequest;
 import de.tum.viewmaintenance.view_table_structure.Table;
 
 import java.util.List;
@@ -48,17 +49,17 @@ public class ReverseJoinOperation extends GenericOperation {
     }
 
     @Override
-    public boolean insertTrigger() {
+    public boolean insertTrigger(TriggerRequest triggerRequest) {
         return false;
     }
 
     @Override
-    public boolean updateTrigger() {
+    public boolean updateTrigger(TriggerRequest triggerRequest) {
         return false;
     }
 
     @Override
-    public boolean deleteTrigger() {
+    public boolean deleteTrigger(TriggerRequest triggerRequest) {
         return false;
     }
 
@@ -71,4 +72,12 @@ public class ReverseJoinOperation extends GenericOperation {
         return reverseJoinOperation;
     }
 
+    @Override
+    public String toString() {
+        return "ReverseJoinOperation{" +
+                "\n deltaTableRecord=" + deltaTableRecord +
+                ",\n inputViewTable=" + inputViewTable +
+                ",\n operationViewTables=" + operationViewTables +
+                '}';
+    }
 }

@@ -273,8 +273,9 @@ public class ViewMaintenanceLogsReader extends Thread {
                                         deltaViewRow = deltaViewTriggerResponse.getDeltaViewUpdatedRow();
                                     }
                                     if (viewsTables.get(i).getSqlString() != null || viewsTables.get(i).getSqlString().equalsIgnoreCase("")) {
-                                        triggerResponse = ((SQLViewMaintenanceTrigger)triggerProcess).processSQLViewMaintenance(type,
-                                                viewsTables.get(i), deltaViewRow);
+                                        triggerResponse = ((SQLViewMaintenanceTrigger)triggerProcess)
+                                                .processSQLViewMaintenance(type, viewsTables.get(i),
+                                                        deltaViewRow, request);
                                         if (!viewCache.containsValue(viewsTables.get(i).getName())){
                                             viewCache.put(viewsTables.get(i).getName(), triggerProcess);
                                         }
