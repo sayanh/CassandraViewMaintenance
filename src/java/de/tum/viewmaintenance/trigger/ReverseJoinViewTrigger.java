@@ -260,9 +260,9 @@ public class ReverseJoinViewTrigger extends TriggerProcess {
         return  isResultSucc;
     }
 
-    /*
+    /**
     * This method deletes cell from the list of the reverse join view.
-    */
+    **/
 
     private boolean deleteInReverseJoinViewTable(TriggerRequest request, String primaryKeyBaseTable, String colAggKey){
         boolean isDeleteSucc = false;

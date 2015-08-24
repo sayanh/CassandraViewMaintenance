@@ -225,6 +225,7 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
 
                 ReverseJoinOperation reverseJoinOperation = ReverseJoinOperation.getInstance(deltaTableViewRow,
                         whereViewTable.getTables(),reverseJoinTablesCreated);
+                        reverseJoinOperation.setJoins(plainSelect.getJoins());
                 operationQueue.add(reverseJoinOperation);
                 operationsInvolved.put("join", getJoinType(plainSelect.getJoins().get(0)));
 
@@ -253,6 +254,7 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
 
                 innerJoinOperation = InnerJoinOperation.getInstance(deltaTableViewRow,
                         reverseJoinViewTable.getTables(), innerJoinTablesCreated);
+                innerJoinOperation.setViewConfig(viewConfig);
                 operationQueue.add(innerJoinOperation);
 
             }

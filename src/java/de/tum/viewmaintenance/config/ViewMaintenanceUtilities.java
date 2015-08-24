@@ -72,6 +72,8 @@ public final class ViewMaintenanceUtilities {
             cql3Type = "text";
         } else if ( internalDataType.equalsIgnoreCase("org.apache.cassandra.db.marshal.Int32Type") ) {
             cql3Type = "int";
+        } else if ( internalDataType.equalsIgnoreCase("org.apache.cassandra.db.marshal.MapType(org.apache.cassandra.db.marshal.Int32Type,org.apache.cassandra.db.marshal.UTF8Type)")) {
+            cql3Type = "map <int, text>";
         }
         return cql3Type;
     }
@@ -189,5 +191,28 @@ public final class ViewMaintenanceUtilities {
 
         return stringBuffer;
     }
+
+
+    /**
+     * Returns true if a column is present in another table with the same name
+     *
+     **/
+
+    public static boolean checkPresenceOfColumnInDifferentTable(String baseTable, String columnName,
+                                                          Map<String, Map<String, ColumnDefinition>> baseTablesDefinitionsMap) {
+        for (Map.Entry<String, Map<String, ColumnDefinition>> table: baseTablesDefinitionsMap.entrySet()){
+            if (table.getKey().equalsIgnoreCase(baseTable)) {
+                continue;
+            }
+            for (Map.Entry<String, ColumnDefinition> columnDefinitionEntry: table.getValue().entrySet()) {
+                if (columnDefinitionEntry.getValue().name.toString().equalsIgnoreCase(columnName)){
+                    logger.debug(" Column {} exists in other table as well!!", columnName);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
 
 }

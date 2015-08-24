@@ -77,8 +77,8 @@ public class ReverseJoinViewTable implements ViewTable {
         Column leftCol = ((net.sf.jsqlparser.schema.Column) equalsToOnExpression.getLeftExpression());
         Column rightCol = ((net.sf.jsqlparser.schema.Column) equalsToOnExpression.getRightExpression());
         tableNames.add(fromBaseTable);
-        for (String tableInvolved : viewConfig.getRefBaseTables()) {
-            if (tableInvolved.contains(tableName2)) {
+        for ( String tableInvolved : viewConfig.getRefBaseTables() ) {
+            if ( tableInvolved.contains(tableName2) ) {
                 tableNames.add(tableInvolved);
             }
         }
@@ -87,7 +87,7 @@ public class ReverseJoinViewTable implements ViewTable {
 
         Map<String, Map<String, ColumnDefinition>> baseTablesDefinitionsMap = new HashMap<>();
 
-        for (String tableInvolved : tableNames) {
+        for ( String tableInvolved : tableNames ) {
             String tableNameArr[] = ViewMaintenanceUtilities.getKeyspaceAndTableNameInAnArray(tableInvolved);
             baseTablesDefinitionsMap.put(tableInvolved, ViewMaintenanceUtilities
                     .getTableDefinitition(tableNameArr[0], tableNameArr[1]));
@@ -104,12 +104,21 @@ public class ReverseJoinViewTable implements ViewTable {
 
         List<de.tum.viewmaintenance.view_table_structure.Column> columnList = new ArrayList<>();
         boolean isPrimaryColCreated = false;
-        for (Map.Entry<String, Map<String, ColumnDefinition>> table : baseTablesDefinitionsMap.entrySet()) {
+        for ( Map.Entry<String, Map<String, ColumnDefinition>> table : baseTablesDefinitionsMap.entrySet() ) {
+            String localPrimaryKeyName = "";
+            String localPrimaryKeyType = "";
+            for ( Map.Entry<String, ColumnDefinition> columnDefinitionEntry : table.getValue().entrySet() ) {
+                if ( columnDefinitionEntry.getValue().isPartitionKey() ) {
+                    localPrimaryKeyName = columnDefinitionEntry.getKey();
+                    localPrimaryKeyType = columnDefinitionEntry.getValue().type.toString();
+                    break;
+                }
+            }
 
-            for (Map.Entry<String, ColumnDefinition> columnDefinitionEntry : table.getValue().entrySet()) {
+            for ( Map.Entry<String, ColumnDefinition> columnDefinitionEntry : table.getValue().entrySet() ) {
                 de.tum.viewmaintenance.view_table_structure.Column column = new de.tum.viewmaintenance.view_table_structure.Column();
-                if (leftCol.getColumnName().equalsIgnoreCase(columnDefinitionEntry.getValue().name + "")) {
-                    if (!isPrimaryColCreated) {
+                if ( leftCol.getColumnName().equalsIgnoreCase(columnDefinitionEntry.getValue().name + "") ) {
+                    if ( !isPrimaryColCreated ) {
                         column.setName(leftCol.getColumnName());
                         column.setIsPrimaryKey(true);
                         column.setDataType(ViewMaintenanceUtilities
@@ -119,8 +128,8 @@ public class ReverseJoinViewTable implements ViewTable {
                         isPrimaryColCreated = true;
                     }
                     continue;
-                } else if (rightCol.getColumnName().equalsIgnoreCase(columnDefinitionEntry.getValue().name + "")) {
-                    if (!isPrimaryColCreated) {
+                } else if ( rightCol.getColumnName().equalsIgnoreCase(columnDefinitionEntry.getValue().name + "") ) {
+                    if ( !isPrimaryColCreated ) {
                         // Assumption for primary key only left column is considered.
                         column.setName(leftCol.getColumnName());
                         column.setIsPrimaryKey(true);
@@ -135,16 +144,31 @@ public class ReverseJoinViewTable implements ViewTable {
 
                 // If a column with the same name appears in both the tables and is not a join key then
                 // the table name is added as a suffix to the name of the column
-                if(checkPresenceOfColumnInDifferentTable(table.getKey(), columnDefinitionEntry.getValue().name + "",
-                        baseTablesDefinitionsMap)) {
+                if ( ViewMaintenanceUtilities.checkPresenceOfColumnInDifferentTable(table.getKey(),
+                        columnDefinitionEntry.getValue().name + "", baseTablesDefinitionsMap) ) {
                     column.setName(columnDefinitionEntry.getValue().name + "" + "_" + table.getKey().split("\\.")[1]); // Key contains schema.table
                 } else {
                     column.setName(columnDefinitionEntry.getValue().name.toString());
                 }
 
-                column.setDataType(ViewMaintenanceUtilities
-                        .getCQL3DataTypeFromCassandraInternalDataType(columnDefinitionEntry
-                                .getValue().type + ""));
+                if ( columnDefinitionEntry.getValue().isPartitionKey() ) {
+                    column.setDataType(columnDefinitionEntry.getValue().type.toString());
+
+                } else {
+                    if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(localPrimaryKeyType).
+                            equalsIgnoreCase("Integer") ) {
+                        column.setDataType("map <int," + ViewMaintenanceUtilities
+                                .getCQL3DataTypeFromCassandraInternalDataType(columnDefinitionEntry
+                                        .getValue().type + ">"));
+                    } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(localPrimaryKeyType).
+                            equalsIgnoreCase("String") ) {
+                        column.setDataType("map <text, " + ViewMaintenanceUtilities
+                                .getCQL3DataTypeFromCassandraInternalDataType(columnDefinitionEntry
+                                        .getValue().type + ">"));
+                    }
+                }
+
+
                 columnList.add(column);
             }
         }
@@ -158,22 +182,6 @@ public class ReverseJoinViewTable implements ViewTable {
     }
 
 
-    private boolean checkPresenceOfColumnInDifferentTable(String fromBaseTable, String columnName,
-                                                          Map<String, Map<String, ColumnDefinition>> baseTablesDefinitionsMap) {
-        for (Map.Entry<String, Map<String, ColumnDefinition>> table: baseTablesDefinitionsMap.entrySet()){
-            if (table.getKey().equalsIgnoreCase(fromBaseTable)) {
-                continue;
-            }
-            for (Map.Entry<String, ColumnDefinition> columnDefinitionEntry: table.getValue().entrySet()) {
-                if (columnDefinitionEntry.getValue().name.toString().equalsIgnoreCase(columnName)){
-                    logger.debug(" Column {} exists in other table as well!!", columnName);
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
     @Override
     public void deleteTable() {
 
@@ -181,7 +189,7 @@ public class ReverseJoinViewTable implements ViewTable {
 
     @Override
     public void materialize() {
-        for (Table newTable : getTables()) {
+        for ( Table newTable : getTables() ) {
             logger.debug(" Table getting materialized :: " + newTable);
             Cluster cluster = CassandraClientUtilities.getConnection("localhost");
             CassandraClientUtilities.createTable(cluster, newTable);

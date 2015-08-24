@@ -102,11 +102,11 @@ public class WhereOperation extends GenericOperation {
 
                     if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(
                             columnDefinition.type.toString()).equalsIgnoreCase("String") ) {
-                        tempList.add(((String) dataJson.get(tempDataKey)).replace("'", ""));
+                        tempList.add(((String) dataJson.get(tempDataKey)).replaceAll("'", ""));
                         if ( columnDefinition.isPartitionKey() ) {
                             fetchExistingRow = QueryBuilder.select().all().from(viewConfig.getKeySpace(), viewTableName)
                                     .where(QueryBuilder.eq(columnDefinition.name.toString(),
-                                            ((String) dataJson.get(tempDataKey)).replace("'", "")));
+                                            ((String) dataJson.get(tempDataKey)).replaceAll("'", "")));
                         }
                     } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(
                             columnDefinition.type.toString()).equalsIgnoreCase("Integer") ) {
@@ -291,10 +291,10 @@ public class WhereOperation extends GenericOperation {
                 // Setting the where string for primary key
                 if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(column.getValue().get(0))
                         .equalsIgnoreCase("Integer") ) {
-                    whereStr = "where " + column.getKey() + "= " + column.getValue().get(1) + ", ";
+                    whereStr = " where " + column.getKey() + "= " + column.getValue().get(1) + ", ";
                 } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(column.getValue().get(0))
                         .equalsIgnoreCase("String") ) {
-                    whereStr = "where " + column.getKey() + "= '" + column.getValue().get(1) + "', ";
+                    whereStr = " where " + column.getKey() + "= '" + column.getValue().get(1) + "', ";
                 }
             } else {
                 // For all other columns
@@ -308,7 +308,7 @@ public class WhereOperation extends GenericOperation {
             }
 
             updateQuery = ViewMaintenanceUtilities.removesCommaSpace(updateQuery);
-
+            updateQuery.append(whereStr);
             logger.debug("### Final update query to where view table :: " + updateQuery.toString());
 
 //            CassandraClientUtilities.commandExecution("localhost", updateQuery.toString());
