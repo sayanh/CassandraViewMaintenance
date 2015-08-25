@@ -58,8 +58,8 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
             throws IOException, JSQLParserException {
         logger.debug("ProcessSQLViewMaintenace | with type: {} , viewConfig {} , deltaTableViewRow {} ", type, viewConfig, deltaTableViewRow);
         /**
-         *  Decides and creates the view table names, structure.
-         * */
+         *  Derives and creates the view table names, structure.
+         **/
 
         if (operationQueue.size() == 0) {
             createSQLTables(viewConfig, deltaTableViewRow);
@@ -68,7 +68,7 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
 
         /**
          * View Maintenance Process starts
-         * **/
+         **/
         processTriggersForViewMaintenance(type, triggerRequest);
 
         TriggerResponse response = new TriggerResponse();
@@ -312,15 +312,6 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
                 operationsInvolved.put("groupBy", groupByExpressions.get(0).toString());
             }
 
-            /**
-             * For cases when there is NO groupBy but there is an aggregate function
-             * in the select item
-             **/
-
-//                if (!operationsInvolved.containsKey("groupBy") && ) {
-//
-//                }
-
 
             /**
              * Computing the aggregate view table
@@ -364,10 +355,11 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
 
             ResultViewOperation resultViewOperation = null;
             if (operationsInvolved.containsKey("having")) {
+                logger.debug("### Result operation depends on conditional aggregate(having), where and join");
                 resultViewOperation = ResultViewOperation.getInstance(deltaTableViewRow,
                         aggViewTable.getTables(), resultTableCreated);
             } else if (operationsInvolved.containsKey("groupBy")){
-                logger.debug("### Result operation depends on where and join");
+                logger.debug("### Result operation depends on aggregate, where and join");
                 resultViewOperation = ResultViewOperation.getInstance(deltaTableViewRow,
                         preAggViewTable.getTables(), resultTableCreated);
             } else if (operationsInvolved.containsKey("join")){
@@ -383,9 +375,7 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
             operationQueue.add(resultViewOperation);
         }
 
-//        } catch (JSQLParserException e) {
-//            logger.error("Error !!! " + ViewMaintenanceUtilities.getStackTrace(e));
-//        }
+        logger.debug("### Operation Queue structure :: " + operationQueue);
 
         return resultViewTable.getTables();
 

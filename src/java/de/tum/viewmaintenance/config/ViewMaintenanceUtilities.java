@@ -1,8 +1,7 @@
 package de.tum.viewmaintenance.config;
 
-import com.datastax.driver.core.Cluster;
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.Session;
+import com.datastax.driver.core.*;
+import com.datastax.driver.core.querybuilder.QueryBuilder;
 import com.google.gson.internal.LinkedTreeMap;
 import de.tum.viewmaintenance.client.CassandraClientUtilities;
 import de.tum.viewmaintenance.trigger.TriggerRequest;
@@ -212,6 +211,39 @@ public final class ViewMaintenanceUtilities {
             }
         }
         return false;
+    }
+
+
+    /**
+     * Returns the row with existing record if there exists else returns null
+     **/
+    public static Row getExistingRecordIfExists(PrimaryKey primaryKey, Table table) {
+        Statement existingRecordQuery = null;
+        // Checking if there is an already existing entry for the join key received
+        if ( primaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+
+            existingRecordQuery = QueryBuilder.select().all().from(table.getKeySpace(),
+                    table.getName()).where(QueryBuilder
+                    .eq(primaryKey.getColumnName(),
+                            Integer.parseInt(primaryKey.getColumnValueInString())));
+        } else if ( primaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
+            existingRecordQuery = QueryBuilder.select().all().from(table.getKeySpace(),
+                    table.getName()).where(QueryBuilder
+                    .eq(primaryKey.getColumnName(),
+                            primaryKey.getColumnValueInString()));
+        }
+
+        logger.debug("#### Existing Record Query :: " + existingRecordQuery);
+
+        List<Row> existingRows = CassandraClientUtilities.commandExecution("localhost", existingRecordQuery);
+
+
+        if ( existingRows.size() > 0 ) {
+            logger.debug("#### Existing record in reverse join view table :: " + existingRows.get(0));
+            return existingRows.get(0);
+        }
+
+        return null;
     }
 
 

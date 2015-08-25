@@ -71,7 +71,6 @@ public class WhereOperation extends GenericOperation {
         logger.debug("##### Table structure involved: {}", this.operationViewTables);
         logger.debug("##### Delta table record {}", this.deltaTableRecord);
         logger.debug("##### Trigger request :: " + triggerRequest);
-        LinkedTreeMap dataJson = triggerRequest.getDataJson();
         Statement fetchExistingRow = null;
         boolean isResultSuccessful = false;
         List<Expression> whereExpressions = ViewMaintenanceUtilities.parseWhereExpression(whereExpression);
@@ -91,6 +90,7 @@ public class WhereOperation extends GenericOperation {
         Map<String, List<String>> columnMap = new HashMap<>();
         String viewTableName = TABLE_PREFIX + triggerRequest.getBaseTableName();
         logger.debug("### Checking --- viewTableName  :: " + viewTableName);
+        LinkedTreeMap dataJson = triggerRequest.getDataJson();
         Set keySet = dataJson.keySet();
         Iterator dataIter = keySet.iterator();
         String primaryKey = null;
