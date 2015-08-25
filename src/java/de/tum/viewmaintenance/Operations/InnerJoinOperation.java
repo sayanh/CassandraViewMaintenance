@@ -139,7 +139,8 @@ public class InnerJoinOperation extends GenericOperation {
         boolean insertToInnerJoinEligible = true;
         List<String> columnNames = new ArrayList<>();
         List<Object> objects = new ArrayList<>();
-
+        //TODO: Remove all the null checks and use is NUll
+        //TODO: If a column is null then break else check for type and get the values which will be inserted to innerjoin view table
         if ( existingReverseJoinRecords.size() > 0 ) {
             Row existingReverseJoinRecord = existingReverseJoinRecords.get(0);
             for ( Column column: operationViewTables.get(0).getColumns()) {
@@ -153,7 +154,7 @@ public class InnerJoinOperation extends GenericOperation {
                             objects.add(existingReverseJoinRecord.getInt(column.getName()));
                         }
                     } else if (column.getJavaDataType().equalsIgnoreCase("String")) {
-                        if (existingReverseJoinRecord.getString(column.getName()) == null) {
+                        if (existingReverseJoinRecord.isNull(column.getName())) {
                             insertToInnerJoinEligible = false;
                             break;
                         } else {

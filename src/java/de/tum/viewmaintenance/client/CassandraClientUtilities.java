@@ -286,7 +286,7 @@ public class CassandraClientUtilities {
     }
 
 
-    static Table createDeltaViewTable(Table baseTable) {
+    public static Table createDeltaViewTable(Table baseTable) {
         Table viewTable = new Table();
         viewTable.setName(baseTable.getName() + "_deltaView");
         viewTable.setKeySpace(baseTable.getKeySpace());

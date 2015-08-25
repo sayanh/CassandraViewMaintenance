@@ -9,6 +9,15 @@ public class PrimaryKey {
     private String columnInternalCassType;
     private String columnValueInString;
 
+    public PrimaryKey() {
+    }
+
+    public PrimaryKey(String columnName, String columnInternalCassType, String columnValueInString) {
+        this.columnName = columnName;
+        this.columnJavaType = ViewMaintenanceUtilities.getJavaTypeFromCassandraType(columnInternalCassType);
+        this.columnInternalCassType = columnInternalCassType;
+        this.columnValueInString = columnValueInString;
+    }
 
     @Override
     public String toString() {

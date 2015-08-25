@@ -15,6 +15,10 @@ public class TriggerRequest {
     private String baseTableKeySpace;
     private Row deletedRowDeltaView;
 
+    private String keyspace;
+
+    private Table viewTable;
+
     public Row getDeletedRowDeltaView() {
         return deletedRowDeltaView;
     }
@@ -26,23 +30,13 @@ public class TriggerRequest {
     public String getBaseTableKeySpace() {
         return baseTableKeySpace;
     }
-
     public void setBaseTableKeySpace(String baseTableKeySpace) {
         this.baseTableKeySpace = baseTableKeySpace;
     }
 
-    private Table viewTable;
 //    private Table baseTable; TODO: Derive the base table structure and set up the base table object using ColumnFamily
 
-//    public Table getBaseTable() {
-//        return baseTable;
 //    }
-//
-//    public void setBaseTable(Table baseTable) {
-//        this.baseTable = baseTable;
-//    }
-
-    private String keyspace;
 
     public String getViewKeyspace() {
         return keyspace;
@@ -90,5 +84,14 @@ public class TriggerRequest {
 
     public void setBaseTableName(String baseTableName) {
         this.baseTableName = baseTableName;
+    }
+
+    @Override
+    public String toString() {
+        return "dataJson:: " + dataJson +
+                "\n baseTableName::" + baseTableName +
+                "\n baseTableKeySpace::" + baseTableKeySpace +
+                "\n type::" + type +
+                "\n viewTable::" + viewTable;
     }
 }
