@@ -33,7 +33,7 @@ public class DeltaViewTrigger extends TriggerProcess {
         try {
             LinkedTreeMap dataMap = request.getDataJson();
             Set keySet = dataMap.keySet();
-            Iterator dataIter = keySet.iterator();
+
 
             String baseTableName = request.getBaseTableName();
             String baseTableKeySpace = request.getBaseTableKeySpace();
@@ -42,35 +42,35 @@ public class DeltaViewTrigger extends TriggerProcess {
             String primaryKeyCassandraDataType = "";
 
             Map<String, ColumnDefinition> tableStrucMap = ViewMaintenanceUtilities.getTableDefinitition(baseTableKeySpace, baseTableName);
+            logger.debug("### Checking -- table definition :: " + tableStrucMap);
 
-            for (Map.Entry<String, ColumnDefinition> entry : tableStrucMap.entrySet()) {
+            for ( Map.Entry<String, ColumnDefinition> entry : tableStrucMap.entrySet() ) {
                 String columnName = entry.getKey();
                 ColumnDefinition columnDefinition = entry.getValue();
-                logger.debug("Column name in the map= " + columnName);
-                while (dataIter.hasNext()) {
+                Iterator dataIter = keySet.iterator();
+                while ( dataIter.hasNext() ) {
                     String columnNameData = (String) dataIter.next();
 
-//                    logger.debug("Column name in the data: " + columnNameData);
-//                    logger.debug("Value: " + dataMap.get(columnNameData));
-                    if (columnName.equalsIgnoreCase(columnNameData)) {
-//                        logger.debug("Matched!!");
+                    logger.debug("Column name in the data: " + columnNameData);
+                    logger.debug("Value: " + dataMap.get(columnNameData));
+                    if ( columnName.equalsIgnoreCase(columnNameData) ) {
                         Column col = new Column();
                         col.setName(columnName);
                         col.setDataType(columnDefinition.type + "");
 
                         col.setIsPrimaryKey(columnDefinition.isPartitionKey());
-                        if (columnDefinition.isPartitionKey()) {
+                        if ( columnDefinition.isPartitionKey() ) {
                             primaryKey = columnName;
                             primaryKeyCassandraDataType = columnDefinition.type + "";
                         }
                         String corrJavaClass = ViewMaintenanceUtilities.getJavaTypeFromCassandraType(columnDefinition.type + "");
                         col.setJavaDataType(corrJavaClass);
 
-                        if (corrJavaClass != null && !"".equalsIgnoreCase(corrJavaClass)) {
-                            if ("Integer".equalsIgnoreCase(corrJavaClass)) {
+                        if ( corrJavaClass != null && !"".equalsIgnoreCase(corrJavaClass) ) {
+                            if ( "Integer".equalsIgnoreCase(corrJavaClass) ) {
                                 col.setValue(Integer.parseInt((String) dataMap.get(columnNameData)));
-                            } else if ("String".equalsIgnoreCase(corrJavaClass)) {
-                                col.setValue(((String) dataMap.get(columnNameData)));
+                            } else if ( "String".equalsIgnoreCase(corrJavaClass) ) {
+                                col.setValue((dataMap.get(columnNameData)));
                             }
                         }
 
@@ -79,6 +79,9 @@ public class DeltaViewTrigger extends TriggerProcess {
                     }
                 }
             }
+
+            logger.debug("### columnMapBaseTable generated ### " + columnMapBaseTable);
+            logger.debug("### columnMapBaseTable generated ### size of the map :: " + columnMapBaseTable.size());
 
             // Making a select query to delta view to check whether the record for the primary key already exists
 
@@ -91,7 +94,7 @@ public class DeltaViewTrigger extends TriggerProcess {
             List<Row> existingRecordList = CassandraClientUtilities.commandExecution("localhost", selectQuery);
             logger.debug("Result | existing row | " + existingRecordList);
 
-            if (existingRecordList.size() > 0) {
+            if ( existingRecordList !=null && existingRecordList.size() > 0 ) {
                 // Update the delta table with the latest information for this key.
                 updateExistingRow(existingRecordList.get(0), request, columnMapBaseTable, primaryKey);
 
@@ -114,7 +117,7 @@ public class DeltaViewTrigger extends TriggerProcess {
             response.setDeltaViewUpdatedRow(existingRecordInDeltaView);
 
             response.setIsSuccess(true);
-        } catch (Exception e) {
+        } catch ( Exception e ) {
             logger.error("Error !!" + ViewMaintenanceUtilities.getStackTrace(e));
         }
         return response;
@@ -126,28 +129,26 @@ public class DeltaViewTrigger extends TriggerProcess {
     *
     */
     private static void updateExistingRow(Row existingRow, TriggerRequest request, Map<String, Column> currentDataMap, String primaryKey) {
-//        Statement updateQuery = QueryBuilder.update(request.getBaseTableKeySpace(), request.getBaseTableName() + DELTAVIEW_SUFFIX)
-//                .with(QueryBuilder.set())
-
+        logger.debug("### Checking -- currentDataMap:: " +  currentDataMap);
         StringBuffer updateQuery = new StringBuffer("update " + request.getBaseTableKeySpace() + "."
                 + request.getBaseTableName() + DELTAVIEW_SUFFIX + " set ");
 
-        for (Map.Entry<String, Column> entry : currentDataMap.entrySet()) {
-            if (!entry.getValue().isPrimaryKey()) {
+        for ( Map.Entry<String, Column> entry : currentDataMap.entrySet() ) {
+            if ( !entry.getValue().isPrimaryKey() ) {
                 updateQuery.append(entry.getKey() + CURRENT + " = " + entry.getValue().getValue() + ", ");
-                if (entry.getValue().getJavaDataType().equalsIgnoreCase("Integer")) {
+                if ( entry.getValue().getJavaDataType().equalsIgnoreCase("Integer") ) {
                     updateQuery.append(entry.getKey() + LAST + " = " +
                             getStringBasedOnType(entry.getValue().getJavaDataType(),
                                     existingRow.getInt(entry.getKey() + CURRENT) + "", false) + ", ");
 
-                } else if (entry.getValue().getJavaDataType().equalsIgnoreCase("String")) {
+                } else if ( entry.getValue().getJavaDataType().equalsIgnoreCase("String") ) {
                     updateQuery.append(entry.getKey() + LAST + " = " +
                             getStringBasedOnType(entry.getValue().getJavaDataType(),
                                     existingRow.getString(entry.getKey() + CURRENT) + "", false) + ", ");
                 }
             }
         }
-        if (updateQuery.lastIndexOf(", ") == updateQuery.length() - 2) {
+        if ( updateQuery.lastIndexOf(", ") == updateQuery.length() - 2 ) {
             updateQuery.delete(updateQuery.length() - 2, updateQuery.length());
         }
 
@@ -160,19 +161,18 @@ public class DeltaViewTrigger extends TriggerProcess {
     }
 
     /**
-    * This method is supposed to insert a new row in the delta view
-    *
-    **/
+     * This method is supposed to insert a new row in the delta view
+     **/
 
-    // TODO: primaryKey is never used.
+    // TODO: Remove primaryKey from the signature as it is never used.
     private static void insertNewRow(TriggerRequest request, Map<String, Column> currentDataMap, String primaryKey) {
 
         StringBuffer insertQuery = new StringBuffer("insert into " + request.getBaseTableKeySpace()
                 + "." + request.getBaseTableName() + DELTAVIEW_SUFFIX + " ( ");
         StringBuffer valuesPartInsertQuery = new StringBuffer(" values ( ");
 
-        for (Map.Entry<String, Column> entry : currentDataMap.entrySet()) {
-            if (entry.getValue().isPrimaryKey()) {
+        for ( Map.Entry<String, Column> entry : currentDataMap.entrySet() ) {
+            if ( entry.getValue().isPrimaryKey() ) {
                 insertQuery.append(entry.getKey() + ", ");
                 valuesPartInsertQuery.append(getStringBasedOnType(entry.getValue()
                         .getJavaDataType(), entry.getValue().getValue() + "", true) + ", ");
@@ -183,11 +183,11 @@ public class DeltaViewTrigger extends TriggerProcess {
             }
         }
 
-        if (insertQuery.lastIndexOf(", ") == insertQuery.length() - 2) {
+        if ( insertQuery.lastIndexOf(", ") == insertQuery.length() - 2 ) {
             insertQuery.delete(insertQuery.length() - 2, insertQuery.length());
         }
 
-        if (valuesPartInsertQuery.lastIndexOf(", ") == valuesPartInsertQuery.length() - 2) {
+        if ( valuesPartInsertQuery.lastIndexOf(", ") == valuesPartInsertQuery.length() - 2 ) {
             valuesPartInsertQuery.delete(valuesPartInsertQuery.length() - 2, valuesPartInsertQuery.length());
         }
 
@@ -200,10 +200,10 @@ public class DeltaViewTrigger extends TriggerProcess {
 
 
     private static String getStringBasedOnType(String type, String targetString, boolean isCurr) {
-        if (type.equalsIgnoreCase("Integer")) {
+        if ( type.equalsIgnoreCase("Integer") ) {
             return targetString;
-        } else if (type.equalsIgnoreCase("String")) {
-            if (isCurr) {
+        } else if ( type.equalsIgnoreCase("String") ) {
+            if ( isCurr ) {
                 return targetString;
             } else {
                 return "'" + targetString + "'";
@@ -240,25 +240,25 @@ public class DeltaViewTrigger extends TriggerProcess {
             List<String> changedFields = new ArrayList<>();
 
             StringTokenizer whereStringTokenizer = new StringTokenizer(whereString, " ");
-            while (whereStringTokenizer.hasMoreTokens()) {
-                if (whereStringTokenizer.nextToken().equalsIgnoreCase("=")) {
+            while ( whereStringTokenizer.hasMoreTokens() ) {
+                if ( whereStringTokenizer.nextToken().equalsIgnoreCase("=") ) {
                     tempUserId = whereStringTokenizer.nextToken();
                     break;
                 }
             }
 
-            while (dataIter.hasNext()) {
+            while ( dataIter.hasNext() ) {
                 String tempDataKey = (String) dataIter.next();
                 logger.debug("Key: " + tempDataKey);
                 logger.debug("Value: " + dataMap.get(tempDataKey));
 
                 changedFields.add(tempDataKey);
 
-                if (tempDataKey.equals("user_id") && "".equalsIgnoreCase(tempUserId)) {
+                if ( tempDataKey.equals("user_id") && "".equalsIgnoreCase(tempUserId) ) {
                     tempUserId = (String) dataMap.get(tempDataKey);
-                } else if (tempDataKey.equals("age")) {
+                } else if ( tempDataKey.equals("age") ) {
                     age = Integer.parseInt((String) dataMap.get(tempDataKey));
-                } else if (tempDataKey.equals("colaggkey_x")) {
+                } else if ( tempDataKey.equals("colaggkey_x") ) {
                     colAggKey = (String) dataMap.get(tempDataKey);
                 }
             }
@@ -274,14 +274,14 @@ public class DeltaViewTrigger extends TriggerProcess {
 
             // TODO: Get the column name dynamically from the table description of Cassandra.
             StringBuffer updateQueryToDeltaView = new StringBuffer("update " + request.getBaseTableKeySpace() + "." + request.getBaseTableName() + DELTAVIEW_SUFFIX + " set ");
-            if (changedFields.contains("age")) {
+            if ( changedFields.contains("age") ) {
                 updateQueryToDeltaView.append("age_cur=" + age + ", age_last=" + age_last + ",");
             }
-            if (changedFields.contains("colaggkey_x")) {
+            if ( changedFields.contains("colaggkey_x") ) {
                 updateQueryToDeltaView.append("colaggkey_x_cur=" + colAggKey + ", colaggkey_x_last='" + colaggkey_x_last + "',");
             }
 
-            if (updateQueryToDeltaView.lastIndexOf(",") == updateQueryToDeltaView.length() - 1) {
+            if ( updateQueryToDeltaView.lastIndexOf(",") == updateQueryToDeltaView.length() - 1 ) {
                 updateQueryToDeltaView.delete(updateQueryToDeltaView.length() - 1, updateQueryToDeltaView.length());
             }
             updateQueryToDeltaView.append(" " + whereString);
@@ -289,7 +289,7 @@ public class DeltaViewTrigger extends TriggerProcess {
             logger.debug(" UpdateQuery to Delta View: " + updateQueryToDeltaView);
             isSuccess = CassandraClientUtilities.commandExecution("localhost", updateQueryToDeltaView.toString());
 
-        } catch (Exception e) {
+        } catch ( Exception e ) {
             logger.debug("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
         }
         response.setIsSuccess(isSuccess);
@@ -311,7 +311,7 @@ public class DeltaViewTrigger extends TriggerProcess {
             logger.debug("The where string = " + whereString);
 
             String whereStrArr[] = whereString.trim().split(" ");
-            if (whereStrArr.length == 3) {
+            if ( whereStrArr.length == 3 ) {
                 primaryKeyValue = whereStrArr[2];
                 primaryKeyName = whereStrArr[0];
             }
@@ -321,11 +321,11 @@ public class DeltaViewTrigger extends TriggerProcess {
 
             Row existingRecordInDeltaView = null;
 
-            if (javaTypePrimaryKey.equalsIgnoreCase("Integer")) {
+            if ( javaTypePrimaryKey.equalsIgnoreCase("Integer") ) {
                 existingRecordInDeltaView = CassandraClientUtilities.getAllRows(request.getBaseTableKeySpace(),
                         request.getBaseTableName() + DELTAVIEW_SUFFIX, QueryBuilder.eq(primaryKeyName,
                                 Integer.parseInt(primaryKeyValue))).get(0);
-            } else if (javaTypePrimaryKey.equalsIgnoreCase("String")) {
+            } else if ( javaTypePrimaryKey.equalsIgnoreCase("String") ) {
                 existingRecordInDeltaView = CassandraClientUtilities.getAllRows(request.getBaseTableKeySpace(),
                         request.getBaseTableName() + DELTAVIEW_SUFFIX, QueryBuilder.eq(primaryKeyName,
                                 primaryKeyValue)).get(0);
@@ -334,12 +334,12 @@ public class DeltaViewTrigger extends TriggerProcess {
             logger.debug("Record to be deleted = " + existingRecordInDeltaView);
             response.setDeletedRowFromDeltaView(existingRecordInDeltaView);
 
-            if (tableStrucMap.get(primaryKeyName).isPartitionKey()
-                    && javaTypePrimaryKey.equalsIgnoreCase("Integer")) {
+            if ( tableStrucMap.get(primaryKeyName).isPartitionKey()
+                    && javaTypePrimaryKey.equalsIgnoreCase("Integer") ) {
                 deleteQuery = QueryBuilder.delete().from(baseTableKeySpace, baseTableName + DELTAVIEW_SUFFIX)
                         .where(QueryBuilder.eq(primaryKeyName, Integer.parseInt(primaryKeyValue)));
-            } else if (tableStrucMap.get(primaryKeyName).isPartitionKey()
-                    && javaTypePrimaryKey.equalsIgnoreCase("String")) {
+            } else if ( tableStrucMap.get(primaryKeyName).isPartitionKey()
+                    && javaTypePrimaryKey.equalsIgnoreCase("String") ) {
                 deleteQuery = QueryBuilder.delete().from(baseTableKeySpace, baseTableName + DELTAVIEW_SUFFIX)
                         .where(QueryBuilder.eq(primaryKeyName, primaryKeyValue));
             }
@@ -347,9 +347,9 @@ public class DeltaViewTrigger extends TriggerProcess {
             logger.debug(" DeleteQuery to Delta View: " + deleteQuery);
             CassandraClientUtilities.commandExecution("localhost", deleteQuery);
             response.setIsSuccess(true);
-        } catch (Exception e) {
+        } catch ( Exception e ) {
             logger.error(" Error !!!" + ViewMaintenanceUtilities.getStackTrace(e));
         }
-        return  response;
+        return response;
     }
 }

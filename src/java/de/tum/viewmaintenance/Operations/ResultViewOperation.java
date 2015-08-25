@@ -20,6 +20,7 @@ public class ResultViewOperation extends GenericOperation{
 
     @Override
     public boolean insertTrigger(TriggerRequest triggerRequest) {
+        logger.debug("### ");
         return false;
     }
 
