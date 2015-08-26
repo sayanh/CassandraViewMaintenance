@@ -3,6 +3,8 @@ package de.tum.viewmaintenance.Operations;
 import com.datastax.driver.core.Row;
 import de.tum.viewmaintenance.trigger.TriggerRequest;
 import de.tum.viewmaintenance.view_table_structure.Table;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
@@ -11,28 +13,17 @@ import java.util.List;
  */
 public class PreAggOperation extends GenericOperation {
 
+    private static final Logger logger = LoggerFactory.getLogger(PreAggOperation.class);
     private Row deltaTableRecord;
     private List<Table> inputViewTables;
     private List<Table> operationViewTables;
-
-    public List<Table> getInputViewTables() {
-        return inputViewTables;
-    }
 
     public void setInputViewTables(List<Table> inputViewTables) {
         this.inputViewTables = inputViewTables;
     }
 
-    public List<Table> getOperationViewTables() {
-        return operationViewTables;
-    }
-
     public void setOperationViewTables(List<Table> operationViewTables) {
         this.operationViewTables = operationViewTables;
-    }
-
-    public Row getDeltaTableRecord() {
-        return deltaTableRecord;
     }
 
     public void setDeltaTableRecord(Row deltaTableRecord) {
@@ -50,6 +41,12 @@ public class PreAggOperation extends GenericOperation {
 
     @Override
     public boolean insertTrigger(TriggerRequest triggerRequest) {
+        logger.debug("##### Entering insert trigger for PreAggregate Operations!!! ");
+        logger.debug("##### Received elements #####");
+        logger.debug("##### Table structure involved: {}", this.operationViewTables);
+        logger.debug("##### Delta table record {}", this.deltaTableRecord);
+        logger.debug("##### Input tables structure {}", this.inputViewTables);
+        logger.debug("##### Trigger request :: " + triggerRequest);
         return false;
     }
 

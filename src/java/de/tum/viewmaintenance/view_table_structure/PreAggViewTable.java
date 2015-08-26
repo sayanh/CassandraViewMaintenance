@@ -41,15 +41,9 @@ public class PreAggViewTable implements ViewTable {
      * Naming convention for preagg view tables: <view_name>_preagg
      **/
 
-    public Row getDeltaTableRecord() {
-        return deltaTableRecord;
-    }
 
     public void setDeltaTableRecord(Row deltaTableRecord) {
         this.deltaTableRecord = deltaTableRecord;
-    }
-    public ViewTable getInputViewTable() {
-        return inputViewTable;
     }
 
     public void setInputViewTable(ViewTable inputViewTable) {
@@ -61,40 +55,43 @@ public class PreAggViewTable implements ViewTable {
         logger.debug("###### Creating table for PreAggViewTable ######");
         List<Table> tablesCreated = new ArrayList<>();
         List<Column> newColumnsForNewTable = new ArrayList<>();
-        for (Function function: functionExpressions) {
+        logger.debug("#### FunctionExpressions :: ", functionExpressions);
+        for ( Function function : functionExpressions ) {
+            // TODO: Currently only one function expression is supported.
             Column tempCol = new Column();
             logger.debug("### Checking --- the value of function name {}", function.getName());
             logger.debug("### Checking --- the value of function name without quotes {}", function.getName()
-            .replace("\"",""));
+                    .replace("\"", ""));
             tempCol.setName(function.getName());
-            if (function.getName().equalsIgnoreCase("SUM")) {
+            if ( function.getName().equalsIgnoreCase("SUM") ) {
                 tempCol.setDataType("int");
-            } else if (function.getName().equalsIgnoreCase("COUNT")) {
+            } else if ( function.getName().equalsIgnoreCase("COUNT") ) {
                 tempCol.setDataType("int");
-            } else if (function.getName().equalsIgnoreCase("MAX")) {
+            } else if ( function.getName().equalsIgnoreCase("MAX") ) {
                 tempCol.setDataType("int");
-            } else if (function.getName().equalsIgnoreCase("MIN")) {
+            } else if ( function.getName().equalsIgnoreCase("MIN") ) {
                 tempCol.setDataType("int");
             }
             // Aggregate functions on all columns are not possible.
-            if (function.isAllColumns()) {
-                tempCol.setIsPrimaryKey(true);
+            if ( function.isAllColumns() ) {
+                // TODO: Not supported yet.
+//                tempCol.setIsPrimaryKey(true);
             }
             newColumnsForNewTable.add(tempCol);
 
             // Creating a column for which the function exists
 
-            if (!function.isAllColumns()) {
+            if ( !function.isAllColumns() ) {
 
-                net.sf.jsqlparser.schema.Column functionCol = (net.sf.jsqlparser.schema.Column)
-                        function.getParameters().getExpressions().get(0);
+                net.sf.jsqlparser.schema.Column groupByCol = (net.sf.jsqlparser.schema.Column)
+                        groupByExpressions.get(0);
 
                 Column primaryKeyColfunctionColumn = new Column();
 
                 primaryKeyColfunctionColumn.setIsPrimaryKey(true);
 
-                primaryKeyColfunctionColumn.setName(functionCol.getTable().getName() + "_" +
-                        functionCol.getColumnName());
+                primaryKeyColfunctionColumn.setName(groupByCol.getTable().getName() + "_" +
+                        groupByCol.getColumnName());
 
                 String baseTableNameArr[] = ViewMaintenanceUtilities.getKeyspaceAndTableNameInAnArray(baseTableName);
                 logger.debug("### Checking -- baseTableName =  {} ", baseTableName);
@@ -104,19 +101,19 @@ public class PreAggViewTable implements ViewTable {
                         .getTableDefinitition(baseTableNameArr[0], baseTableNameArr[1]);
 
                 logger.debug("### Checking -- baseTableDesc =  {} ", baseTableDesc);
-                logger.debug("### Checking -- function column = {}", functionCol.getColumnName());
+                logger.debug("### Checking -- group by column name = {} ", groupByCol.getColumnName());
                 logger.debug("### Checking -- column type =  {} ",
-                        baseTableDesc.get(functionCol.getColumnName()).type + "");
+                        baseTableDesc.get(groupByCol.getColumnName()).type + "");
 
                 primaryKeyColfunctionColumn.setDataType(ViewMaintenanceUtilities
                         .getCQL3DataTypeFromCassandraInternalDataType(baseTableDesc.get(
-                                functionCol.getColumnName()).type + ""));
+                                groupByCol.getColumnName()).type + ""));
 
                 newColumnsForNewTable.add(primaryKeyColfunctionColumn);
             }
 
 
-         }
+        }
 
         Table newTableCreated = new Table();
         newTableCreated.setName(TABLE_PREFIX);
@@ -136,7 +133,7 @@ public class PreAggViewTable implements ViewTable {
 
     @Override
     public void materialize() {
-        for (Table newTable : getTables()) {
+        for ( Table newTable : getTables() ) {
             logger.debug(" Table getting materialized :: " + newTable);
             Cluster cluster = CassandraClientUtilities.getConnection("localhost");
             CassandraClientUtilities.createTable(cluster, newTable);
@@ -182,10 +179,6 @@ public class PreAggViewTable implements ViewTable {
 
     public void setFunctionExpressions(List<Function> functionExpressions) {
         this.functionExpressions = functionExpressions;
-    }
-
-    public List<Expression> getGroupByExpressions() {
-        return groupByExpressions;
     }
 
     public void setGroupByExpressions(List<Expression> groupByExpressions) {

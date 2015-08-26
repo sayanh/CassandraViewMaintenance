@@ -277,24 +277,13 @@ public class ResultViewOperation extends GenericOperation {
         return resultViewOperation;
     }
 
-    public Row getDeltaTableRecord() {
-        return deltaTableRecord;
-    }
-
     public void setDeltaTableRecord(Row deltaTableRecord) {
         this.deltaTableRecord = deltaTableRecord;
     }
 
-    public List<Table> getInputViewTables() {
-        return inputViewTables;
-    }
 
     public void setInputViewTables(List<Table> inputViewTables) {
         this.inputViewTables = inputViewTables;
-    }
-
-    public List<Table> getOperationViewTables() {
-        return operationViewTables;
     }
 
     public void setOperationViewTables(List<Table> operationViewTables) {
