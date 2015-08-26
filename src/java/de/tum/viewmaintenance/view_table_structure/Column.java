@@ -82,7 +82,7 @@ public class Column {
     public String toString() {
         return "Column - name : " + name +
                 ", type : " + type +
-                ", dataType : " + dataType +
+                ", CQL3dataType : " + dataType +
                 ", javaDataType : " + javaDataType +
                 ", value : " + value +
                 ", isPrimaryKey : " + isPrimaryKey;
