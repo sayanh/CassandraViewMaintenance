@@ -59,10 +59,11 @@ public class PreAggViewTable implements ViewTable {
         for ( Function function : functionExpressions ) {
             // TODO: Currently only one function expression is supported.
             Column tempCol = new Column();
+            net.sf.jsqlparser.schema.Column functionColumn = (net.sf.jsqlparser.schema.Column)function.getParameters().getExpressions().get(0);
             logger.debug("### Checking --- the value of function name {}", function.getName());
             logger.debug("### Checking --- the value of function name without quotes {}", function.getName()
                     .replace("\"", ""));
-            tempCol.setName(function.getName());
+            tempCol.setName(function.getName() + functionColumn.getColumnName());
             if ( function.getName().equalsIgnoreCase("SUM") ) {
                 tempCol.setDataType("int");
             } else if ( function.getName().equalsIgnoreCase("COUNT") ) {

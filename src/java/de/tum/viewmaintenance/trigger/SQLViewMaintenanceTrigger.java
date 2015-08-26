@@ -311,6 +311,9 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
                     preAggOperation = PreAggOperation.getInstance(deltaTableViewRow,
                             null, preAggTablesCreated);
                 }
+                preAggOperation.setViewConfig(viewConfig);
+
+                operationQueue.add(preAggOperation);
 
 
 
@@ -347,8 +350,6 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
                         preAggViewTable.getTables(), aggViewTableCreated);
                 operationsInvolved.put("having", expressionHaving.toString());
                 operationQueue.add(aggOperation);
-            } else if (operationsInvolved.get("groupBy") != null) {
-                operationQueue.add(preAggOperation);
             }
 
             // Creation of views based on the functions present

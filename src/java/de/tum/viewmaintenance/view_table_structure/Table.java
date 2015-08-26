@@ -22,12 +22,10 @@ public class Table {
 
 
     public List<String> getRefBaseTables() {
-        if (refBaseTables == null || refBaseTables.size() == 0) {
-            if (refBaseTables == null){
-                refBaseTables = new ArrayList<>();
-            }
+        if ( refBaseTables == null || refBaseTables.size() == 0 ) {
+            refBaseTables = new ArrayList<>();
             String tempRefBaseTableArr[] = refBaseTable.split(",");
-            for (String refTableName: tempRefBaseTableArr) {
+            for ( String refTableName : tempRefBaseTableArr ) {
                 refBaseTables.add(refTableName);
             }
         }
@@ -93,7 +91,6 @@ public class Table {
     public void setColumns(List<Column> columns) {
         this.columns = columns;
     }
-
 
 
     @Override

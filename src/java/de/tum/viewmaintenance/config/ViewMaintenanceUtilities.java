@@ -79,6 +79,22 @@ public final class ViewMaintenanceUtilities {
 
 
     /**
+     * It returns an equivalent Java data type from CQL3 data type
+     **/
+    public static String getJavaDataTypeFromCQL3DataType(String cql3DataType) {
+        String javaDataType = "";
+        logger.debug(" The cassandra type received is " + cql3DataType);
+
+        if ( cql3DataType.equalsIgnoreCase("text") ) {
+            javaDataType = "String";
+        } else if ( cql3DataType.equalsIgnoreCase("int") ) {
+            javaDataType = "Integer";
+        }
+        return javaDataType;
+    }
+
+
+    /**
      * It returns the stack trace as a String.
      **/
     public static String getStackTrace(Exception e) {
