@@ -14,6 +14,8 @@ import de.tum.viewmaintenance.trigger.TriggerRequest;
 import de.tum.viewmaintenance.view_table_structure.Column;
 import de.tum.viewmaintenance.view_table_structure.Table;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.serializers.IntegerSerializer;
+import org.apache.cassandra.thrift.Cassandra;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,14 +49,13 @@ public class PreAggOperation extends GenericOperation {
         this.operationViewTables = operationViewTables;
     }
 
-    public void setDeltaTableRecord(Row deltaTableRecord) {
-        this.deltaTableRecord = deltaTableRecord;
-    }
+//    public void setDeltaTableRecord(Row deltaTableRecord) {
+//        this.deltaTableRecord = deltaTableRecord;
+//    }
 
-    public static PreAggOperation getInstance(Row deltaTableRecord, List<Table> inputViewTables,
+    public static PreAggOperation getInstance(List<Table> inputViewTables,
                                               List<Table> operationViewTables) {
         PreAggOperation preAggOperation = new PreAggOperation();
-        preAggOperation.setDeltaTableRecord(deltaTableRecord);
         preAggOperation.setInputViewTables(inputViewTables);
         preAggOperation.setOperationViewTables(operationViewTables);
         return preAggOperation;
@@ -65,6 +66,7 @@ public class PreAggOperation extends GenericOperation {
         logger.debug("##### Entering insert trigger for PreAggregate Operations!!! ");
         logger.debug("##### Received elements #####");
         logger.debug("##### Table structure involved: {}", this.operationViewTables);
+        this.deltaTableRecord = triggerRequest.getCurrentRecordInDeltaView();
         logger.debug("##### Delta table record {}", this.deltaTableRecord);
         logger.debug("##### Input tables structure {}", this.inputViewTables);
         logger.debug("##### Trigger request :: " + triggerRequest);
@@ -73,10 +75,12 @@ public class PreAggOperation extends GenericOperation {
             // Case: No where, join and having clause
             String baseTableInvolved = viewConfig.getRefBaseTable();
             String baseTableInvolvedArr[] = ViewMaintenanceUtilities.getKeyspaceAndTableNameInAnArray(baseTableInvolved);
+
             Map<String, ColumnDefinition> baseTableDesc = ViewMaintenanceUtilities.getTableDefinitition(baseTableInvolvedArr[0],
                     baseTableInvolvedArr[1]);
+            logger.debug("#### Base table description :: " + baseTableDesc);
             List<String> userData = new ArrayList<>(); // For target column: FunctionName, Value, TargetColumnName
-            List<String> aggregationKeyData = new ArrayList<>(); // For aggregation key: columnName, Cass Type
+            List<String> aggregationKeyData = new ArrayList<>(); // For curr aggregation key: columnName, Cass Type
             PrimaryKey preAggTablePK = null;
             PrimaryKey baseTablePK = null;
             LinkedTreeMap dataJson = triggerRequest.getDataJson();
@@ -86,8 +90,7 @@ public class PreAggOperation extends GenericOperation {
                 String prefixForColName = column.getName().substring(0, column.getName().indexOf("_"));
                 if ( AVAILABLE_FUNCS.contains(prefixForColName) ) {
                     userData.add(prefixForColName);
-                    userData.add(((String) dataJson.get(derivedColumnName)).replaceAll("'",
-                            ""));
+                    userData.add(((String) dataJson.get(derivedColumnName)).replaceAll("'", ""));
                     userData.add(derivedColumnName);
                 } else {
 
@@ -102,68 +105,102 @@ public class PreAggOperation extends GenericOperation {
 
                         if ( columnDefBaseTableEntry.getValue().isPartitionKey() ) {
                             baseTablePK = new PrimaryKey(columnDefBaseTableEntry.getKey(), columnDefBaseTableEntry
-                                    .getValue().type.toString(), ((String) dataJson.get(derivedColumnName)).replaceAll("'", ""));
+                                    .getValue().type.toString(), ((String) dataJson.get(columnDefBaseTableEntry.getKey()))
+                                    .replaceAll("'", ""));
                         }
                     }
                 }
             }
-
+            String statusEntryColAggKey = checkForChangeInAggregationKey(aggregationKeyData);
 
             // check for the change in aggregation key over the time
-            if ( checkForChangeInAggregationKey(aggregationKeyData) ) {
+            if ( statusEntryColAggKey.equalsIgnoreCase("changed") ) {
                 // Aggregation key got changed
                 Row existingRecordPreAggTable = ViewMaintenanceUtilities.getExistingRecordIfExists(preAggTablePK,
                         operationViewTables.get(0));
 
-                if ( existingRecordPreAggTable != null ) {
-
-                    logger.debug("### Existing record in preAggregateView :: " + existingRecordPreAggTable);
-                    // Update Agg function column for preagg view table
-                    if ( userData.get(2).equalsIgnoreCase("sum") ) {
-
-                        updateSumPreAggView(preAggTablePK, existingRecordPreAggTable, userData);
-                    } else if ( userData.get(2).equalsIgnoreCase("count") ) {
-
-                    } else if ( userData.get(2).equalsIgnoreCase("max") ) {
-
-                    } else if ( userData.get(2).equalsIgnoreCase("min") ) {
-
-                    }
-                } else {
-                    // Insert into Agg function column for preagg view table
-                    if ( userData.get(2).equalsIgnoreCase("sum") ) {
-                        insertIntoSumPreAggView(preAggTablePK, userData);
-                    } else if ( userData.get(2).equalsIgnoreCase("count") ) {
-
-                    } else if ( userData.get(2).equalsIgnoreCase("max") ) {
-
-                    } else if ( userData.get(2).equalsIgnoreCase("min") ) {
-
-                    }
-                }
+                intelligentEntryPreAggViewTable(existingRecordPreAggTable, preAggTablePK, userData);
 
                 // Delete(actually update) the amount for the old aggregation key
-                if ( userData.get(2).equalsIgnoreCase("sum") ) {
-                    deleteFromSumPreAggView(getOldAggregationKeyAsPrimaryKey(aggregationKeyData), userData.get(2));
-                } else if ( userData.get(2).equalsIgnoreCase("count") ) {
+                if ( userData.get(0).equalsIgnoreCase("sum") ) {
+                    deleteFromSumPreAggView(getOldAggregationKeyAsPrimaryKey(aggregationKeyData,
+                            baseTableInvolvedArr[1]), userData.get(0) + "_" + userData.get(2));
+                } else if ( userData.get(0).equalsIgnoreCase("count") ) {
+                    deleteFromCountPreAggView(getOldAggregationKeyAsPrimaryKey(aggregationKeyData,
+                            baseTableInvolvedArr[1]), userData.get(0) + "_" + userData.get(2));
+                } else if ( userData.get(0).equalsIgnoreCase("max") ) {
 
-                } else if ( userData.get(2).equalsIgnoreCase("max") ) {
-
-                } else if ( userData.get(2).equalsIgnoreCase("min") ) {
+                } else if ( userData.get(0).equalsIgnoreCase("min") ) {
 
                 }
 
 
             } else {
-                // Aggregation key remained same
+                // Aggregation key remained same or new entry with old value as null
                 Row existingRecordPreAggTable = ViewMaintenanceUtilities.getExistingRecordIfExists(preAggTablePK,
                         operationViewTables.get(0));
-                updateSumPreAggView(preAggTablePK, existingRecordPreAggTable, userData);
+                if ( statusEntryColAggKey.equalsIgnoreCase("new") ) {
+                    intelligentEntryPreAggViewTable(existingRecordPreAggTable, preAggTablePK, userData);
+                } else if ( statusEntryColAggKey.equalsIgnoreCase("unchanged") ) {
+                    String statusTargetCol = checkForChangeInTargetColValue(userData);
+                    if ( userData.get(0).equalsIgnoreCase("sum") && statusTargetCol.equalsIgnoreCase("changed") ) {
+                        updateSumPreAggView(preAggTablePK, existingRecordPreAggTable, userData);
+                    } else if ( userData.get(0).equalsIgnoreCase("count") ) {
+//                        updateCountPreAggView(preAggTablePK, existingRecordPreAggTable, userData);
+                        // count does not undergo any change
+                    } else if ( userData.get(0).equalsIgnoreCase("max") ) {
+//                        updateMaxPreAggView();
+                    } else if ( userData.get(0).equalsIgnoreCase("min") ) {
+
+                    }
+                }
+
+
+                if ( existingRecordPreAggTable != null ) {
+                    logger.debug("### Existing record in the preagg table :: " + existingRecordPreAggTable);
+                    if ( userData.get(0).equalsIgnoreCase("sum") ) {
+                        updateSumPreAggView(preAggTablePK, existingRecordPreAggTable, userData);
+                    }
+                }
+
+                // There is no change in count view
+
+
             }
 
 
         }
         return true;
+
+    }
+
+    private void intelligentEntryPreAggViewTable(Row existingRecordPreAggTable, PrimaryKey preAggTablePK, List<String> userData) {
+        if ( existingRecordPreAggTable != null ) {
+
+            logger.debug("### Existing record in preAggregateView :: " + existingRecordPreAggTable);
+            // Update Agg function column for preagg view table
+            if ( userData.get(0).equalsIgnoreCase("sum") ) {
+                updateSumPreAggView(preAggTablePK, existingRecordPreAggTable, userData);
+            } else if ( userData.get(0).equalsIgnoreCase("count") ) {
+                updateCountPreAggView(preAggTablePK, existingRecordPreAggTable, userData);
+            } else if ( userData.get(0).equalsIgnoreCase("max") ) {
+//                        updateMaxPreAggView();
+            } else if ( userData.get(0).equalsIgnoreCase("min") ) {
+
+            }
+        } else {
+            logger.debug("### Fresh entry for record in preAggregateView!!! userData::  " + userData);
+            // Insert into Agg function column for preagg view table
+            if ( userData.get(0).equalsIgnoreCase("sum") ) {
+                insertIntoSumPreAggView(preAggTablePK, userData);
+            } else if ( userData.get(0).equalsIgnoreCase("count") ) {
+                insertIntoCountPreAggView(preAggTablePK, userData.get(0) + "_" + userData.get(2));
+            } else if ( userData.get(0).equalsIgnoreCase("max") ) {
+
+            } else if ( userData.get(0).equalsIgnoreCase("min") ) {
+
+            }
+        }
     }
 
     @Override
@@ -176,20 +213,10 @@ public class PreAggOperation extends GenericOperation {
         return false;
     }
 
-    @Override
-    public String toString() {
-        return "PreAggOperation{" +
-                "\n deltaTableRecord=" + deltaTableRecord +
-                ",\n inputViewTables=" + inputViewTables +
-                ",\n operationViewTables=" + operationViewTables +
-                '}';
-    }
-
-
     private void updateSumPreAggView(PrimaryKey preAggTablePK, Row existingRecordPreAggTable, List<String> userData) {
-        int existingVal = existingRecordPreAggTable.getInt(userData.get(0) + "_" + userData.get(2));
+        String modifiedColumnName = userData.get(0) + "_" + userData.get(2);
+        int existingVal = existingRecordPreAggTable.getInt(modifiedColumnName);
         int newValue = existingVal + Integer.parseInt(userData.get(1));
-        String modifiedColumnName = "sum_" + userData.get(2);
         Update.Assignments assignments = QueryBuilder.update(operationViewTables.get(0).getKeySpace(),
                 operationViewTables.get(0).getName()).with();
         Statement updateSumQuery = null;
@@ -208,7 +235,26 @@ public class PreAggOperation extends GenericOperation {
 
     }
 
+
     private void updateCountPreAggView(PrimaryKey preAggTablePK, Row existingRecordPreAggTable, List<String> userData) {
+        String modifiedColumnName = userData.get(0) + "_" + userData.get(2);
+        int existingVal = existingRecordPreAggTable.getInt(modifiedColumnName);
+        int newValue = existingVal + 1;
+        Update.Assignments assignments = QueryBuilder.update(operationViewTables.get(0).getKeySpace(),
+                operationViewTables.get(0).getName()).with();
+        Statement updateCountQuery = null;
+        if ( preAggTablePK.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+            updateCountQuery = assignments.and(QueryBuilder.set(modifiedColumnName, newValue)).where(
+                    QueryBuilder.eq(preAggTablePK.getColumnName(), Integer.parseInt(preAggTablePK.getColumnValueInString())));
+
+        } else if ( preAggTablePK.getColumnJavaType().equalsIgnoreCase("String") ) {
+            updateCountQuery = assignments.and(QueryBuilder.set(modifiedColumnName, newValue)).where(
+                    QueryBuilder.eq(preAggTablePK.getColumnName(), preAggTablePK.getColumnValueInString()));
+        }
+
+        logger.debug("### UpdateCountQuery :: " + updateCountQuery);
+
+        CassandraClientUtilities.commandExecution("localhost", updateCountQuery);
 
     }
 
@@ -226,28 +272,47 @@ public class PreAggOperation extends GenericOperation {
         List<Object> objects = new ArrayList<>();
 
         columnNames.add(preAggTablePK.getColumnName());
-        if (preAggTablePK.getColumnJavaType().equalsIgnoreCase("Integer")) {
+        if ( preAggTablePK.getColumnJavaType().equalsIgnoreCase("Integer") ) {
             objects.add(Integer.parseInt(preAggTablePK.getColumnValueInString()));
-        } else if (preAggTablePK.getColumnJavaType().equalsIgnoreCase("String")) {
+        } else if ( preAggTablePK.getColumnJavaType().equalsIgnoreCase("String") ) {
             objects.add(preAggTablePK.getColumnValueInString());
         }
-
 
         columnNames.add(userData.get(2));
         objects.add(Integer.parseInt(userData.get(1)));
 
-        Statement insertQuery = QueryBuilder.insertInto(operationViewTables.get(0).getKeySpace(),
+        Statement insertSumQuery = QueryBuilder.insertInto(operationViewTables.get(0).getKeySpace(),
                 operationViewTables.get(0).getName()).values(columnNames.toArray(new String[columnNames.size()]),
                 objects.toArray());
 
+        logger.debug("### Insert query for Sum into pre agg view table :: " + insertSumQuery);
 
-        logger.debug("### Insert query for Sum into pre agg view table :: " + insertQuery);
-
-        CassandraClientUtilities.commandExecution("localhost", insertQuery);
+        CassandraClientUtilities.commandExecution("localhost", insertSumQuery);
 
     }
 
-    private void insertIntoCountPreAggView(PrimaryKey preAggTablePK) {
+    private void insertIntoCountPreAggView(PrimaryKey preAggTablePK, String targetColName) {
+
+        List<String> colNames = new ArrayList<>();
+        List<Object> objects = new ArrayList<>();
+        colNames.add(preAggTablePK.getColumnName());
+        if ( preAggTablePK.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+            objects.add(Integer.parseInt(preAggTablePK.getColumnValueInString()));
+        } else if ( preAggTablePK.getColumnJavaType().equalsIgnoreCase("String") ) {
+            objects.add(preAggTablePK.getColumnValueInString());
+        }
+
+        colNames.add(targetColName);
+        objects.add(1);
+
+
+        Statement insertCountQuery = QueryBuilder.insertInto(operationViewTables.get(0).getKeySpace(),
+                operationViewTables.get(0).getName()).values(colNames.toArray(new String[colNames.size()]),
+                objects.toArray());
+
+        logger.debug("### insert Count query to pre agg view:: " + insertCountQuery);
+
+        CassandraClientUtilities.commandExecution("localhost", insertCountQuery);
 
     }
 
@@ -268,12 +333,12 @@ public class PreAggOperation extends GenericOperation {
         int oldAggValue = existingRecordOldAggKey.getInt("sum_" + oldAggregateKey.getColumnName());
         int subtractionAmount = deltaTableRecord.getInt(targetColName + DeltaViewTrigger.LAST);
         Update.Assignments assignments = QueryBuilder.update(operationViewTables.get(0).getKeySpace(),
-                operationViewTables.get(0).getName()).with(QueryBuilder.add(oldAggregateKey.getColumnName(),
+                operationViewTables.get(0).getName()).with(QueryBuilder.add(targetColName,
                 (oldAggValue - subtractionAmount)));
-        if (oldAggregateKey.getColumnJavaType().equalsIgnoreCase("Integer")) {
+        if ( oldAggregateKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
             updateQuery = assignments.where(QueryBuilder.eq(oldAggregateKey.getColumnName(),
                     Integer.parseInt(oldAggregateKey.getColumnValueInString())));
-        } else if (oldAggregateKey.getColumnJavaType().equalsIgnoreCase("String")) {
+        } else if ( oldAggregateKey.getColumnJavaType().equalsIgnoreCase("String") ) {
             updateQuery = assignments.where(QueryBuilder.eq(oldAggregateKey.getColumnName(),
                     oldAggregateKey.getColumnValueInString()));
         }
@@ -282,41 +347,103 @@ public class PreAggOperation extends GenericOperation {
         CassandraClientUtilities.commandExecution("localhost", updateQuery);
     }
 
+    private void deleteFromCountPreAggView(PrimaryKey oldAggregateKey, String targetColName) {
+        Statement deleteCountQuery = null;
 
-    private boolean checkForChangeInAggregationKey(List<String> aggregationKeyData) {
-        boolean isChanged = false;
+        Row existingRecordOldAggKey = ViewMaintenanceUtilities.getExistingRecordIfExists(oldAggregateKey,
+                operationViewTables.get(0));
+        logger.debug("### Existing record for OldAggKey :: " + existingRecordOldAggKey);
+        int oldAggValue = existingRecordOldAggKey.getInt(targetColName);
+        Update.Assignments assignments = QueryBuilder.update(operationViewTables.get(0).getKeySpace(),
+                operationViewTables.get(0).getName()).with(QueryBuilder.set(targetColName,
+                (oldAggValue - 1)));
+        if ( oldAggregateKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+            deleteCountQuery = assignments.where(QueryBuilder.eq(oldAggregateKey.getColumnName(),
+                    Integer.parseInt(oldAggregateKey.getColumnValueInString())));
+        } else if ( oldAggregateKey.getColumnJavaType().equalsIgnoreCase("String") ) {
+            deleteCountQuery = assignments.where(QueryBuilder.eq(oldAggregateKey.getColumnName(),
+                    oldAggregateKey.getColumnValueInString()));
+        }
+
+        logger.debug("### Delete query for sum in preagg View :: " + deleteCountQuery);
+        CassandraClientUtilities.commandExecution("localhost", deleteCountQuery);
+    }
+
+
+    private String checkForChangeInAggregationKey(List<String> aggregationKeyData) {
+        String result = "";
         if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(aggregationKeyData.get(1))
                 .equalsIgnoreCase("Integer") ) {
             if ( deltaTableRecord.getInt(aggregationKeyData.get(0) + DeltaViewTrigger.CURRENT) ==
                     deltaTableRecord.getInt(aggregationKeyData.get(0) + DeltaViewTrigger.LAST) ) {
-                isChanged = true;
+                result = "unchanged";
             } else {
-                isChanged = false;
+                if ( deltaTableRecord.getInt(aggregationKeyData.get(0) + DeltaViewTrigger.LAST) == 0 ) {
+                    result = "new";
+                } else {
+                    result = "changed";
+                }
             }
         } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(aggregationKeyData.get(1))
                 .equalsIgnoreCase("String") ) {
             if ( deltaTableRecord.getString(aggregationKeyData.get(0) + DeltaViewTrigger.CURRENT).equalsIgnoreCase(
                     deltaTableRecord.getString(aggregationKeyData.get(0) + DeltaViewTrigger.LAST)) ) {
-                isChanged = true;
+                result = "unchanged";
             } else {
-                isChanged = false;
+                if ( deltaTableRecord.getString(aggregationKeyData.get(0) + DeltaViewTrigger.LAST) == null
+                        || deltaTableRecord.getString(aggregationKeyData.get(0) + DeltaViewTrigger.LAST).isEmpty() ) {
+                    result = "new";
+                } else {
+                    result = "changed";
+                }
             }
         }
-        return isChanged;
+
+        logger.debug("#### Result for checkForChangeInAggregationKey :: " + result);
+        return result;
     }
 
-    private PrimaryKey getOldAggregationKeyAsPrimaryKey(List<String> aggregationKeyData) {
+
+    private String checkForChangeInTargetColValue(List<String> userData) {
+        String result = "";
+        if ( deltaTableRecord.getInt(userData.get(2) + DeltaViewTrigger.CURRENT) ==
+                deltaTableRecord.getInt(userData.get(2) + DeltaViewTrigger.LAST) ) {
+            result = "unchanged";
+        } else {
+            if ( deltaTableRecord.getInt(userData.get(2) + DeltaViewTrigger.LAST) == 0 ) {
+                result = "new";
+            } else {
+                result = "changed";
+            }
+        }
+
+        logger.debug("### Result for checkForChangeInTargetColValue :: " + result);
+        return result;
+    }
+
+    private PrimaryKey getOldAggregationKeyAsPrimaryKey(List<String> aggregationKeyData, String baseTableName) {
         PrimaryKey oldAggKey = null;
         if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(aggregationKeyData.get(1))
                 .equalsIgnoreCase("Integer") ) {
-            oldAggKey = new PrimaryKey(aggregationKeyData.get(0), aggregationKeyData.get(1),
-                    deltaTableRecord.getInt(aggregationKeyData.get(0) + DeltaViewTrigger.LAST) + "");
+            oldAggKey = new PrimaryKey(baseTableName + "_" + aggregationKeyData.get(0),
+                    aggregationKeyData.get(1), deltaTableRecord.getInt(
+                    aggregationKeyData.get(0) + DeltaViewTrigger.LAST) + "");
         } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(aggregationKeyData.get(1))
                 .equalsIgnoreCase("String") ) {
-            oldAggKey = new PrimaryKey(aggregationKeyData.get(0), aggregationKeyData.get(1),
-                    deltaTableRecord.getString(aggregationKeyData.get(0) + DeltaViewTrigger.LAST));
+            oldAggKey = new PrimaryKey(baseTableName + "_" + aggregationKeyData.get(0),
+                    aggregationKeyData.get(1), deltaTableRecord.getString(
+                    aggregationKeyData.get(0) + DeltaViewTrigger.LAST));
         }
+        logger.debug("#### Old Aggregate Key as Primary Key :: " + oldAggKey);
         return oldAggKey;
+    }
+
+    @Override
+    public String toString() {
+        return "PreAggOperation{" +
+                ",\n inputViewTables=" + inputViewTables +
+                ",\n operationViewTables=" + operationViewTables +
+                '}';
     }
 
 }

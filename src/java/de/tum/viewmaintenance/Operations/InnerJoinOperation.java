@@ -55,10 +55,9 @@ public class InnerJoinOperation extends GenericOperation {
         this.deltaTableRecord = deltaTableRecord;
     }
 
-    public static InnerJoinOperation getInstance(Row deltaTableRecord, List<Table> inputViewTable,
+    public static InnerJoinOperation getInstance(List<Table> inputViewTable,
                                                  List<Table> operationViewTable) {
         InnerJoinOperation innerJoinOperation = new InnerJoinOperation();
-        innerJoinOperation.setDeltaTableRecord(deltaTableRecord);
         innerJoinOperation.setInputViewTable(inputViewTable);
         innerJoinOperation.setOperationViewTable(operationViewTable);
         return innerJoinOperation;
@@ -70,6 +69,7 @@ public class InnerJoinOperation extends GenericOperation {
         logger.debug("##### Entering insert trigger for InnerJoin Operations!!! ");
         logger.debug("##### Received elements #####");
         logger.debug("##### Table structure involved: {}", this.operationViewTables);
+        this.deltaTableRecord = triggerRequest.getCurrentRecordInDeltaView();
         logger.debug("##### Delta table record {}", this.deltaTableRecord);
         Table reverseJoinTable = inputViewTables.get(0);
         LinkedTreeMap dataJson = triggerRequest.getDataJson();
@@ -215,7 +215,6 @@ public class InnerJoinOperation extends GenericOperation {
     @Override
     public String toString() {
         return "InnerJoinOperation{" +
-                "\n deltaTableRecord=" + deltaTableRecord +
                 ",\n inputViewTables=" + inputViewTables +
                 ",\n operationViewTables=" + operationViewTables +
                 '}';

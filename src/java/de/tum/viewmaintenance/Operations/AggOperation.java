@@ -68,10 +68,9 @@ public class AggOperation extends GenericOperation {
         this.deltaTableRecord = deltaTableRecord;
     }
 
-    public static AggOperation getInstance(Row deltaTableRecord, List<Table> inputViewTables,
+    public static AggOperation getInstance(List<Table> inputViewTables,
                                                  List<Table> operationViewTables) {
         AggOperation aggOperation = new AggOperation();
-        aggOperation.setDeltaTableRecord(deltaTableRecord);
         aggOperation.setInputViewTable(inputViewTables);
         aggOperation.setOperationViewTable(operationViewTables);
         return aggOperation;
@@ -79,6 +78,8 @@ public class AggOperation extends GenericOperation {
 
     @Override
     public boolean insertTrigger(TriggerRequest triggerRequest) {
+
+        this.deltaTableRecord = triggerRequest.getCurrentRecordInDeltaView();
         return false;
     }
 
@@ -95,7 +96,6 @@ public class AggOperation extends GenericOperation {
     @Override
     public String toString() {
         return "AggOperation{" +
-                "\n deltaTableRecord=" + deltaTableRecord +
                 ",\n inputViewTables=" + inputViewTables +
                 ",\n operationViewTables=" + operationViewTables +
                 ",\n havingExpression=" + havingExpression +

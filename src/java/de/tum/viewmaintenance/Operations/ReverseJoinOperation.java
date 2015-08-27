@@ -50,9 +50,9 @@ public class ReverseJoinOperation extends GenericOperation {
         return deltaTableRecord;
     }
 
-    public void setDeltaTableRecord(Row deltaTableRecord) {
-        this.deltaTableRecord = deltaTableRecord;
-    }
+//    public void setDeltaTableRecord(Row deltaTableRecord) {
+//        this.deltaTableRecord = deltaTableRecord;
+//    }
 
     public GenericOperation getSqlOperation() {
         return sqlOperation;
@@ -83,6 +83,7 @@ public class ReverseJoinOperation extends GenericOperation {
         logger.debug("##### Entering insert trigger for ReverseJoin Operations!!! ");
         logger.debug("##### Received elements #####");
         logger.debug("##### Table structure involved: {}", this.operationViewTables);
+        this.deltaTableRecord = triggerRequest.getCurrentRecordInDeltaView();
         logger.debug("##### Delta table record {}", this.deltaTableRecord);
         LinkedTreeMap dataJson = triggerRequest.getDataJson();
         Set keySet = dataJson.keySet();
@@ -591,10 +592,9 @@ public class ReverseJoinOperation extends GenericOperation {
         return false;
     }
 
-    public static ReverseJoinOperation getInstance(Row deltaTableRecord, List<Table> inputViewTable,
+    public static ReverseJoinOperation getInstance(List<Table> inputViewTable,
                                                    List<Table> operationViewTable) {
         ReverseJoinOperation reverseJoinOperation = new ReverseJoinOperation();
-        reverseJoinOperation.setDeltaTableRecord(deltaTableRecord);
         reverseJoinOperation.setInputViewTable(inputViewTable);
         reverseJoinOperation.setOperationViewTables(operationViewTable);
         return reverseJoinOperation;
@@ -603,7 +603,6 @@ public class ReverseJoinOperation extends GenericOperation {
     @Override
     public String toString() {
         return "ReverseJoinOperation{" +
-                "\n deltaTableRecord=" + deltaTableRecord +
                 ",\n inputViewTable=" + inputViewTable +
                 ",\n operationViewTables=" + operationViewTables +
                 '}';

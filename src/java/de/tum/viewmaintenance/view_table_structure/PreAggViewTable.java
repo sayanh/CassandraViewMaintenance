@@ -63,7 +63,7 @@ public class PreAggViewTable implements ViewTable {
             logger.debug("### Checking --- the value of function name {}", function.getName());
             logger.debug("### Checking --- the value of function name without quotes {}", function.getName()
                     .replace("\"", ""));
-            tempCol.setName(function.getName() + functionColumn.getColumnName());
+            tempCol.setName(function.getName() + "_" + functionColumn.getColumnName()); // <functionName>_<targetColumnName>
             if ( function.getName().equalsIgnoreCase("SUM") ) {
                 tempCol.setDataType("int");
             } else if ( function.getName().equalsIgnoreCase("COUNT") ) {
@@ -92,7 +92,7 @@ public class PreAggViewTable implements ViewTable {
                 primaryKeyColfunctionColumn.setIsPrimaryKey(true);
 
                 primaryKeyColfunctionColumn.setName(groupByCol.getTable().getName() + "_" +
-                        groupByCol.getColumnName());
+                        groupByCol.getColumnName()); // <table_name>_<groupby_col> is the primary key
 
                 String baseTableNameArr[] = ViewMaintenanceUtilities.getKeyspaceAndTableNameInAnArray(baseTableName);
                 logger.debug("### Checking -- baseTableName =  {} ", baseTableName);

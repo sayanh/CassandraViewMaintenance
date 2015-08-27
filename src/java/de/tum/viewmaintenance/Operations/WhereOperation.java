@@ -51,14 +51,13 @@ public class WhereOperation extends GenericOperation {
         this.operationViewTables = operationViewTables;
     }
 
-    public void setDeltaTableRecord(Row deltaTableRecord) {
-        this.deltaTableRecord = deltaTableRecord;
-    }
+//    public void setDeltaTableRecord(Row deltaTableRecord) {
+//        this.deltaTableRecord = deltaTableRecord;
+//    }
 
-    public static WhereOperation getInstance(Row deltaTableRecord, List<Table> inputViewTable,
+    public static WhereOperation getInstance(List<Table> inputViewTable,
                                              List<Table> operationViewTable) {
         WhereOperation whereOperation = new WhereOperation();
-        whereOperation.setDeltaTableRecord(deltaTableRecord);
 //        whereOperation.setInputViewTable(inputViewTable);
         whereOperation.setOperationViewTable(operationViewTable);
         return whereOperation;
@@ -69,6 +68,7 @@ public class WhereOperation extends GenericOperation {
         logger.debug("##### Entering insert trigger for Where Operations!!! ");
         logger.debug("##### Received elements #####");
         logger.debug("##### Table structure involved: {}", this.operationViewTables);
+        this.deltaTableRecord = triggerRequest.getCurrentRecordInDeltaView();
         logger.debug("##### Delta table record {}", this.deltaTableRecord);
         logger.debug("##### Trigger request :: " + triggerRequest);
         Statement fetchExistingRow = null;
@@ -432,7 +432,6 @@ public class WhereOperation extends GenericOperation {
     @Override
     public String toString() {
         return "WhereOperation{" +
-                "\n deltaTableRecord=" + deltaTableRecord +
                 ",\n operationViewTables=" + operationViewTables +
                 '}';
     }

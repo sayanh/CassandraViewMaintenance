@@ -35,6 +35,7 @@ public class ResultViewOperation extends GenericOperation {
         logger.debug("##### Entering insert trigger for Final Result Operations!!! ");
         logger.debug("##### Received elements #####");
         logger.debug("##### Table structure involved: {}", this.operationViewTables);
+        this.deltaTableRecord = triggerRequest.getCurrentRecordInDeltaView();
         logger.debug("##### Delta table record {}", this.deltaTableRecord);
         logger.debug("##### Input tables structure {}", this.inputViewTables);
         logger.debug("##### Trigger request :: " + triggerRequest);
@@ -268,18 +269,17 @@ public class ResultViewOperation extends GenericOperation {
         return false;
     }
 
-    public static ResultViewOperation getInstance(Row deltaTableRecord, List<Table> inputViewTables,
+    public static ResultViewOperation getInstance(List<Table> inputViewTables,
                                                   List<Table> operationViewTables) {
         ResultViewOperation resultViewOperation = new ResultViewOperation();
         resultViewOperation.setInputViewTables(inputViewTables);
         resultViewOperation.setOperationViewTables(operationViewTables);
-        resultViewOperation.setDeltaTableRecord(deltaTableRecord);
         return resultViewOperation;
     }
 
-    public void setDeltaTableRecord(Row deltaTableRecord) {
-        this.deltaTableRecord = deltaTableRecord;
-    }
+//    public void setDeltaTableRecord(Row deltaTableRecord) {
+//        this.deltaTableRecord = deltaTableRecord;
+//    }
 
 
     public void setInputViewTables(List<Table> inputViewTables) {
@@ -293,7 +293,6 @@ public class ResultViewOperation extends GenericOperation {
     @Override
     public String toString() {
         return "ResultViewOperation{" +
-                "\n deltaTableRecord=" + deltaTableRecord +
                 ",\n inputViewTables=" + inputViewTables +
                 ",\n operationViewTables=" + operationViewTables +
                 '}';

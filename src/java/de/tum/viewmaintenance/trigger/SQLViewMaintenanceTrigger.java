@@ -24,9 +24,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Created by anarchy on 8/2/15.
+ * Created by shazra on 8/2/15.
  */
-public class SQLViewMaintenanceTrigger extends TriggerProcess{
+public class SQLViewMaintenanceTrigger extends TriggerProcess {
     private static final Logger logger = LoggerFactory.getLogger(SQLViewMaintenanceTrigger.class);
     private Map<String, Boolean> operationsFileMap = null;
     private List<GenericOperation> operationQueue = new ArrayList<>();
@@ -53,22 +53,22 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
      * This is not a view table as the other standalone views.
      * This in turn produces a series of views.
      **/
-    public TriggerResponse processSQLViewMaintenance(String type, Table viewConfig,
-                                                     Row deltaTableViewRow, TriggerRequest triggerRequest)
+    public TriggerResponse processSQLViewMaintenance(String type, Table viewConfig, TriggerRequest triggerRequest)
             throws IOException, JSQLParserException {
-        logger.debug("ProcessSQLViewMaintenace | with type: {} , viewConfig {} , deltaTableViewRow {} ", type, viewConfig, deltaTableViewRow);
+        logger.debug("ProcessSQLViewMaintenace | with type: {} , viewConfig {} ", type, viewConfig);
         /**
          *  Derives and creates the view table names, structure.
          **/
 
-        if (operationQueue.size() == 0) {
-            createSQLTables(viewConfig, deltaTableViewRow);
+        if ( operationQueue.size() == 0 ) {
+            createSQLTables(viewConfig);
         }
 
 
         /**
          * View Maintenance Process starts
          **/
+
         processTriggersForViewMaintenance(type, triggerRequest);
 
         TriggerResponse response = new TriggerResponse();
@@ -80,7 +80,7 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
         logger.debug("#### processTriggersForViewMaintenance ### " +
                 "Available Operations are #####");
 
-        for (GenericOperation operation: operationQueue){
+        for ( GenericOperation operation : operationQueue ) {
             logger.debug("### Checking - Operation class = {}", operation);
 
             operation.processOperation(type, triggerRequest);
@@ -92,9 +92,8 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
      * TODO: This will not work for nested SELECT statements. For that following action should be taken.
      * <view_name>_<operation_name>_<basetable_name>_<counter>
      * Each time due to a nested select query, it reaches here, the counter increases.
-     *
-     * **/
-    private List<Table> createSQLTables(Table viewConfig, Row deltaTableViewRow) throws IOException, JSQLParserException {
+     **/
+    private List<Table> createSQLTables(Table viewConfig) throws IOException, JSQLParserException {
         logger.debug(" ***** Inside createSQLTables() ..... for view: ", viewConfig.getName());
         ResultViewTable resultViewTable = null;
 
@@ -125,10 +124,10 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
         logger.debug("### The current size of the operationQueue is ### " + operationQueue.size());
 
 
-        if (operationQueue.size() == 0) {
+        if ( operationQueue.size() == 0 ) {
 
             logger.debug(" ****** Operation Queue is null:: Entering here for first time ******");
-            if (stmt instanceof Select) {
+            if ( stmt instanceof Select ) {
                 Select select = (Select) stmt;
                 plainSelect = (PlainSelect) select.getSelectBody();
             }
@@ -147,18 +146,18 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
              * Checking for where clause
              **/
 
-            for (SelectItem selectItem: plainSelect.getSelectItems()) {
-                if (selectItem instanceof SelectExpressionItem) {
+            for ( SelectItem selectItem : plainSelect.getSelectItems() ) {
+                if ( selectItem instanceof SelectExpressionItem ) {
                     SelectExpressionItem expressionItem = (SelectExpressionItem) selectItem;
                     listSelectExpressions.add(expressionItem.getExpression());
-                    if (expressionItem.getExpression() instanceof Function) {
-                        Function function = (Function)expressionItem.getExpression();
+                    if ( expressionItem.getExpression() instanceof Function ) {
+                        Function function = (Function) expressionItem.getExpression();
                         functionList.add(function);
                     }
                 }
             }
 
-            if (plainSelect.getWhere() != null) {
+            if ( plainSelect.getWhere() != null ) {
                 logger.debug("### Computing the where clause ###");
                 String whereColName = "";
 
@@ -170,13 +169,13 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
                 whereViewTable.setShouldBeMaterialized(getMapOperations().get("where"));
                 whereViewTable.setViewConfig(viewConfig);
                 List<Table> whereTablesCreated = whereViewTable.createTable();
-                if (whereViewTable.shouldBeMaterialized()) {
+                if ( whereViewTable.shouldBeMaterialized() ) {
                     whereViewTable.materialize();
                 } else {
                     //TODO: yet to be implemented.
                     whereViewTable.createInMemory(whereTablesCreated);
                 }
-                WhereOperation whereOperation = WhereOperation.getInstance(deltaTableViewRow, null, whereTablesCreated);
+                WhereOperation whereOperation = WhereOperation.getInstance(null, whereTablesCreated);
                 whereOperation.setWhereExpression(expression);
                 whereOperation.setViewConfig(viewConfig);
                 operationQueue.add(whereOperation);
@@ -184,7 +183,7 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
 
             }
 
-            if (plainSelect.getFromItem() instanceof net.sf.jsqlparser.schema.Table) {
+            if ( plainSelect.getFromItem() instanceof net.sf.jsqlparser.schema.Table ) {
                 baseFromTableName = ((net.sf.jsqlparser.schema.Table) plainSelect.getFromItem()).getFullyQualifiedName();
                 String baseFromTableNameArr[] = ViewMaintenanceUtilities.getKeyspaceAndTableNameInAnArray(baseFromTableName);
                 baseFromKeySpace = baseFromTableNameArr[0];
@@ -199,8 +198,7 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
              **/
 
 
-
-            if (plainSelect.getJoins() != null) {
+            if ( plainSelect.getJoins() != null ) {
                 /**
                  * Note: Assuming only one join will be present
                  **/
@@ -215,16 +213,16 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
                 List<Table> reverseJoinTablesCreated = reverseJoinViewTable.createTable();
                 logger.debug("### Checking - reversejoin shouldBeMaterialized() - " +
                         getMapOperations().get("reversejoin"));
-                if (reverseJoinViewTable.shouldBeMaterialized()) {
+                if ( reverseJoinViewTable.shouldBeMaterialized() ) {
                     reverseJoinViewTable.materialize();
                 } else {
                     //TODO: yet to be implemented.
                     reverseJoinViewTable.createInMemory(reverseJoinTablesCreated);
                 }
 
-                ReverseJoinOperation reverseJoinOperation = ReverseJoinOperation.getInstance(deltaTableViewRow,
-                        whereViewTable.getTables(),reverseJoinTablesCreated);
-                        reverseJoinOperation.setJoins(plainSelect.getJoins());
+                ReverseJoinOperation reverseJoinOperation = ReverseJoinOperation.getInstance(whereViewTable.getTables(),
+                        reverseJoinTablesCreated);
+                reverseJoinOperation.setJoins(plainSelect.getJoins());
                 operationQueue.add(reverseJoinOperation);
                 operationsInvolved.put("join", getJoinType(plainSelect.getJoins().get(0)));
 
@@ -232,8 +230,8 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
                 // Note: Only Inner Join works now
 
                 List<Table> innerJoinTablesCreated = null;
-                for (Join join: reverseJoinViewTable.getJoins()) {
-                    if (join.isInner()) {
+                for ( Join join : reverseJoinViewTable.getJoins() ) {
+                    if ( join.isInner() ) {
                         innerJoinViewTable = new InnerJoinViewTable();
                         innerJoinViewTable.setShouldBeMaterialized(getMapOperations().get("innerjoin"));
                         innerJoinViewTable.setInputReverseJoinTableStruc(
@@ -242,7 +240,7 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
                         innerJoinTablesCreated = innerJoinViewTable.createTable();
                         logger.debug("### Checking - innerjoin shouldBeMaterialized() - " +
                                 getMapOperations().get("innerjoin"));
-                        if (innerJoinViewTable.shouldBeMaterialized()) {
+                        if ( innerJoinViewTable.shouldBeMaterialized() ) {
                             innerJoinViewTable.materialize();
                         } else {
                             //TODO: yet to be implemented.
@@ -251,8 +249,8 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
                     }
                 }
 
-                innerJoinOperation = InnerJoinOperation.getInstance(deltaTableViewRow,
-                        reverseJoinViewTable.getTables(), innerJoinTablesCreated);
+                innerJoinOperation = InnerJoinOperation.getInstance(reverseJoinViewTable.getTables(),
+                        innerJoinTablesCreated);
                 innerJoinOperation.setViewConfig(viewConfig);
                 operationQueue.add(innerJoinOperation);
 
@@ -268,17 +266,15 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
              * **/
 
 
-
-            if (plainSelect.getGroupByColumnReferences() != null) {
+            if ( plainSelect.getGroupByColumnReferences() != null ) {
                 List<Expression> groupByExpressions = plainSelect.getGroupByColumnReferences();
 
                 preAggViewTable = new PreAggViewTable();
-                preAggViewTable.setDeltaTableRecord(deltaTableViewRow);
                 preAggViewTable.setShouldBeMaterialized(getMapOperations().get("preaggregation"));
-                if (operationsInvolved.get("join") != null) {
+                if ( operationsInvolved.get("join") != null ) {
                     logger.debug(" ***** Join is present hence adding join view table :: " + innerJoinViewTable);
                     preAggViewTable.setInputViewTable(innerJoinViewTable);
-                } else if (operationsInvolved.get("where") != null) {
+                } else if ( operationsInvolved.get("where") != null ) {
                     logger.debug(" ***** Join is not present but where is " +
                             "hence adding where view table :: " + whereViewTable);
                     preAggViewTable.setInputViewTable(whereViewTable);
@@ -294,27 +290,25 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
                 List<Table> preAggTablesCreated = preAggViewTable.createTable();
                 logger.debug("### Checking - preaggregation shouldBeMaterialized() - " +
                         getMapOperations().get("preaggregation"));
-                if (preAggViewTable.shouldBeMaterialized()) {
+                if ( preAggViewTable.shouldBeMaterialized() ) {
                     preAggViewTable.materialize();
                 } else {
                     //TODO: yet to be implemented.
                     preAggViewTable.createInMemory(preAggTablesCreated);
                 }
 
-                if (operationsInvolved.get("join") != null) {
-                    preAggOperation = PreAggOperation.getInstance(deltaTableViewRow,
-                            innerJoinViewTable.getTables(), preAggTablesCreated);
-                } else if (operationsInvolved.get("where") != null){
-                    preAggOperation = PreAggOperation.getInstance(deltaTableViewRow,
-                            whereViewTable.getTables(), preAggTablesCreated);
+                if ( operationsInvolved.get("join") != null ) {
+                    preAggOperation = PreAggOperation.getInstance(innerJoinViewTable.getTables(),
+                            preAggTablesCreated);
+                } else if ( operationsInvolved.get("where") != null ) {
+                    preAggOperation = PreAggOperation.getInstance(whereViewTable.getTables(),
+                            preAggTablesCreated);
                 } else {
-                    preAggOperation = PreAggOperation.getInstance(deltaTableViewRow,
-                            null, preAggTablesCreated);
+                    preAggOperation = PreAggOperation.getInstance(null, preAggTablesCreated);
                 }
                 preAggOperation.setViewConfig(viewConfig);
 
                 operationQueue.add(preAggOperation);
-
 
 
                 // Storing the expression in the operationsInvolved list.
@@ -327,7 +321,7 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
              * Computing the aggregate view table
              **/
 
-            if (plainSelect.getHaving() != null) {
+            if ( plainSelect.getHaving() != null ) {
                 operationsInvolved.put("having", plainSelect.getHaving().toString());
                 Expression expressionHaving = plainSelect.getHaving();
 
@@ -339,15 +333,15 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
                 List<Table> aggViewTableCreated = aggViewTable.createTable();
                 logger.debug("### Checking - aggregation shouldBeMaterialized() - " +
                         getMapOperations().get("aggregation"));
-                if (aggViewTable.shouldBeMaterialized()) {
+                if ( aggViewTable.shouldBeMaterialized() ) {
                     aggViewTable.materialize();
                 } else {
                     //TODO: yet to be implemented.
                     aggViewTable.createInMemory(aggViewTableCreated);
                 }
 
-                AggOperation aggOperation = AggOperation.getInstance(deltaTableViewRow,
-                        preAggViewTable.getTables(), aggViewTableCreated);
+                AggOperation aggOperation = AggOperation.getInstance(preAggViewTable.getTables(),
+                        aggViewTableCreated);
                 operationsInvolved.put("having", expressionHaving.toString());
                 operationQueue.add(aggOperation);
             }
@@ -361,25 +355,25 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
 
             List<Table> resultTableCreated = resultViewTable.createTable();
             logger.debug("### Materializing Result View Table :: " + resultTableCreated);
-                resultViewTable.materialize();
+            resultViewTable.materialize();
 
             ResultViewOperation resultViewOperation = null;
-            if (operationsInvolved.containsKey("having")) {
+            if ( operationsInvolved.containsKey("having") ) {
                 logger.debug("### Result operation depends on conditional aggregate(having), where and join");
-                resultViewOperation = ResultViewOperation.getInstance(deltaTableViewRow,
-                        aggViewTable.getTables(), resultTableCreated);
-            } else if (operationsInvolved.containsKey("groupBy")){
+                resultViewOperation = ResultViewOperation.getInstance(aggViewTable.getTables(),
+                        resultTableCreated);
+            } else if ( operationsInvolved.containsKey("groupBy") ) {
                 logger.debug("### Result operation depends on aggregate, may be(where and join)");
-                resultViewOperation = ResultViewOperation.getInstance(deltaTableViewRow,
-                        preAggViewTable.getTables(), resultTableCreated);
-            } else if (operationsInvolved.containsKey("join")){
+                resultViewOperation = ResultViewOperation.getInstance(preAggViewTable.getTables(),
+                        resultTableCreated);
+            } else if ( operationsInvolved.containsKey("join") ) {
                 logger.debug("### Result operation depends on where and join");
-                resultViewOperation = ResultViewOperation.getInstance(deltaTableViewRow,
-                        innerJoinViewTable.getTables(), resultTableCreated);
-            } else if (operationsInvolved.containsKey("where")){
+                resultViewOperation = ResultViewOperation.getInstance(innerJoinViewTable.getTables(),
+                        resultTableCreated);
+            } else if ( operationsInvolved.containsKey("where") ) {
                 logger.debug("### Result operation depends on where");
-                resultViewOperation = ResultViewOperation.getInstance(deltaTableViewRow,
-                        whereViewTable.getTables(), resultTableCreated);
+                resultViewOperation = ResultViewOperation.getInstance(whereViewTable.getTables(),
+                        resultTableCreated);
             }
 
             operationQueue.add(resultViewOperation);
@@ -393,8 +387,8 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
 
 
     private Map<String, Boolean> getMapOperations() throws IOException {
-        if (operationsFileMap == null) {
-            logger.debug("***** System.getProperty(\"user.dir\") = " + System.getProperty("user.dir") );
+        if ( operationsFileMap == null ) {
+            logger.debug("***** System.getProperty(\"user.dir\") = " + System.getProperty("user.dir"));
             String stringList = new String(Files.readAllBytes(Paths.get(OPERATIONS_FILENAME)));
             operationsFileMap = new Gson().fromJson(stringList, new TypeToken<HashMap<String, Object>>() {
             }.getType());
@@ -405,15 +399,15 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess{
 
 
     private String getJoinType(Join join) {
-        if (join.isCross()) {
+        if ( join.isCross() ) {
             return "CrossJoin";
-        } else if (join.isFull()) {
+        } else if ( join.isFull() ) {
             return "FullJoin";
-        } else if (join.isInner()) {
+        } else if ( join.isInner() ) {
             return "InnerJoin";
-        } else if (join.isLeft()) {
+        } else if ( join.isLeft() ) {
             return "LeftJoin";
-        } else if (join.isRight()) {
+        } else if ( join.isRight() ) {
             return "RightJoin";
         }
 

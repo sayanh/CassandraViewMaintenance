@@ -5,7 +5,7 @@ import com.google.gson.internal.LinkedTreeMap;
 import de.tum.viewmaintenance.view_table_structure.Table;
 
 /**
- * Created by anarchy on 6/27/15.
+ * Created by shazra on 6/27/15.
  */
 public class TriggerRequest {
     private LinkedTreeMap dataJson;
@@ -14,10 +14,19 @@ public class TriggerRequest {
     private String baseTableName;
     private String baseTableKeySpace;
     private Row deletedRowDeltaView;
+    private Row currentRecordInDeltaView;
 
     private String keyspace;
 
     private Table viewTable;
+
+    public Row getCurrentRecordInDeltaView() {
+        return currentRecordInDeltaView;
+    }
+
+    public void setCurrentRecordInDeltaView(Row currentRecordInDeltaView) {
+        this.currentRecordInDeltaView = currentRecordInDeltaView;
+    }
 
     public Row getDeletedRowDeltaView() {
         return deletedRowDeltaView;
