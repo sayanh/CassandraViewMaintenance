@@ -64,7 +64,9 @@ public class ResultViewTable implements ViewTable {
         } else {
             List<SelectItem> selectItems = plainSelect.getSelectItems();
             boolean isPrimaryKeyCalculated = false;
+
             for (SelectItem selectItem : selectItems) {
+
                 if (selectItem instanceof SelectExpressionItem) {
                     SelectExpressionItem selectExpressionItem = (SelectExpressionItem) selectItem;
                     if (selectExpressionItem.getExpression() instanceof net.sf.jsqlparser.schema.Column) {
@@ -156,13 +158,27 @@ public class ResultViewTable implements ViewTable {
                             columns.add(reqdCol);
 
                             /**
-                             * Assumption: If aggregate function is present then the target column is within the brackets.
+                             * Assumption: If aggregate function is present then the target column is always within the brackets.
+                             * And a function always exists with a group by clause
                              **/
+
+                            // Get group by column to determine the primary key
+                            net.sf.jsqlparser.schema.Column groupByCol = (net.sf.jsqlparser.schema.Column)
+                                    plainSelect.getGroupByColumnReferences().get(0);
+
+
+
+
+
+
 
                             // Checking whether the target column is already or not if yes make it a primary key
 
+                            logger.debug("### Checking --- columns added so far :: " + columns);
+                            logger.debug("### Checking --- if the agg column has already been added to the list " +
+                                    "of the columns :: aggCol = " + colNameForFunctionWithTableArr[1]);
                             for (Column col : columns) {
-                                if (col.getName().equalsIgnoreCase(colNameForFunctionWithTableArr[1])) {
+                                if (col.getName().equalsIgnoreCase(groupByCol.getColumnName())) {
                                     col.setIsPrimaryKey(true);
                                     isPrimaryKeyCalculated = true;
                                     logger.debug("### Aggregate key was already created:: {} ", col);
@@ -171,12 +187,13 @@ public class ResultViewTable implements ViewTable {
 
                             if (!isPrimaryKeyCalculated) {
                                 // Assumption: After aggregate there cannot be any column projection
-                                logger.debug("### Aggregate key is not added as it is not there in select items!!!");
+                                logger.debug("### Aggregate key(or groupby col) is not added as it is " +
+                                        "not there in select items!!!");
                                 logger.debug("### It is added here as a PK and with a temp suffix !!!!");
                                 de.tum.viewmaintenance.view_table_structure.Column primaryKeyCol = new de.tum.viewmaintenance.view_table_structure.Column();
                                 primaryKeyCol.setDataType(ViewMaintenanceUtilities
                                         .getCQL3DataTypeFromCassandraInternalDataType(mapDesc
-                                                .get(colNameForFunctionWithTableArr[1])
+                                                .get(groupByCol.getColumnName())
                                                 .type
                                                 .toString()));
 
@@ -188,6 +205,7 @@ public class ResultViewTable implements ViewTable {
                                 isPrimaryKeyCalculated = true;
                             }
                         } else if (function.isAllColumns()) {
+                            //TODO: Not supported at this moment.
                             List<Expression> groupBExpressions = plainSelect.getGroupByColumnReferences();
                             // Assuming there would only one expressions
                             net.sf.jsqlparser.schema.Column groupByColumn =

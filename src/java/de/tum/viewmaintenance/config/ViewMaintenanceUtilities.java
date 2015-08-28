@@ -4,6 +4,7 @@ import com.datastax.driver.core.*;
 import com.datastax.driver.core.querybuilder.QueryBuilder;
 import com.google.gson.internal.LinkedTreeMap;
 import de.tum.viewmaintenance.client.CassandraClientUtilities;
+import de.tum.viewmaintenance.trigger.DeltaViewTrigger;
 import de.tum.viewmaintenance.trigger.TriggerRequest;
 import de.tum.viewmaintenance.view_table_structure.Table;
 import de.tum.viewmaintenance.view_table_structure.Views;
@@ -75,6 +76,24 @@ public final class ViewMaintenanceUtilities {
             cql3Type = "map <int, text>";
         }
         return cql3Type;
+    }
+
+
+    /**
+     * It returns an equivalent Cassandra internal data type from CQL3 data type
+     **/
+    public static String getCassInternalDataTypeFromCQL3DataType(String cql3DataType) {
+        String cassInternalType = "";
+        logger.debug(" The cql3 type received is " + cql3DataType);
+
+        if ( cql3DataType.equalsIgnoreCase("text") ) {
+            cassInternalType = "org.apache.cassandra.db.marshal.UTF8Type";
+        } else if ( cql3DataType.equalsIgnoreCase("int") ) {
+            cassInternalType = "org.apache.cassandra.db.marshal.Int32Type";
+        } else if ( cql3DataType.equalsIgnoreCase("map <int, text>")) {
+            cassInternalType = "org.apache.cassandra.db.marshal.MapType(org.apache.cassandra.db.marshal.Int32Type,org.apache.cassandra.db.marshal.UTF8Type)";
+        }
+        return cassInternalType;
     }
 
 
@@ -261,6 +280,42 @@ public final class ViewMaintenanceUtilities {
         }
 
         return null;
+    }
+
+
+    public static String checkForChangeInAggregationKeyInDeltaView(List<String> aggregationKeyData, Row deltaTableRecord) {
+        logger.debug("#### Checking --- aggregationKeyData :: " + aggregationKeyData);
+        logger.debug("#### Checking --- deltaTableRecord :: " + deltaTableRecord);
+        String result = "";
+        if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(aggregationKeyData.get(1))
+                .equalsIgnoreCase("Integer") ) {
+            if ( deltaTableRecord.getInt(aggregationKeyData.get(0) + DeltaViewTrigger.CURRENT) ==
+                    deltaTableRecord.getInt(aggregationKeyData.get(0) + DeltaViewTrigger.LAST) ) {
+                result = "unchanged";
+            } else {
+                if ( deltaTableRecord.getInt(aggregationKeyData.get(0) + DeltaViewTrigger.LAST) == 0 ) {
+                    result = "new";
+                } else {
+                    result = "changed";
+                }
+            }
+        } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(aggregationKeyData.get(1))
+                .equalsIgnoreCase("String") ) {
+            if ( deltaTableRecord.getString(aggregationKeyData.get(0) + DeltaViewTrigger.CURRENT).equalsIgnoreCase(
+                    deltaTableRecord.getString(aggregationKeyData.get(0) + DeltaViewTrigger.LAST)) ) {
+                result = "unchanged";
+            } else {
+                if ( deltaTableRecord.getString(aggregationKeyData.get(0) + DeltaViewTrigger.LAST) == null
+                        || deltaTableRecord.getString(aggregationKeyData.get(0) + DeltaViewTrigger.LAST).isEmpty() ) {
+                    result = "new";
+                } else {
+                    result = "changed";
+                }
+            }
+        }
+
+        logger.debug("#### Result for checkForChangeInAggregationKey :: " + result);
+        return result;
     }
 
 
