@@ -120,6 +120,7 @@ public class PreAggViewTable implements ViewTable {
         newTableCreated.setName(TABLE_PREFIX);
         newTableCreated.setColumns(newColumnsForNewTable);
         newTableCreated.setKeySpace(viewConfig.getKeySpace());
+        newTableCreated.setIsMaterialized(shouldBeMaterialized);
         logger.debug("### PreAggViewTable structure created as :: " + newTableCreated);
         tablesCreated.add(newTableCreated);
         tables = tablesCreated;

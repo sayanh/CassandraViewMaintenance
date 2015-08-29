@@ -307,6 +307,10 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess {
                     preAggOperation = PreAggOperation.getInstance(null, preAggTablesCreated);
                 }
                 preAggOperation.setViewConfig(viewConfig);
+                if ( operationsInvolved.get("where") != null ) {
+
+                    preAggOperation.setWhereTables(whereViewTable.getTables());
+                }
 
                 operationQueue.add(preAggOperation);
 

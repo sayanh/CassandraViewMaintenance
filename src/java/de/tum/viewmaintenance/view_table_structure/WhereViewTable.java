@@ -111,6 +111,7 @@ public class WhereViewTable implements ViewTable {
             newViewTable.setName(TABLE_PREFIX +
                     ViewMaintenanceUtilities.getKeyspaceAndTableNameInAnArray(table.getKey())[1]);
             newViewTable.setKeySpace(viewConfig.getKeySpace());
+            newViewTable.setIsMaterialized(shouldBeMaterialized);
             List<de.tum.viewmaintenance.view_table_structure.Column> columnList = new ArrayList<>();
             for (Map.Entry<String, ColumnDefinition> column : table.getValue().entrySet()) {
                 de.tum.viewmaintenance.view_table_structure.Column newCol = new de.tum.viewmaintenance.view_table_structure.Column();

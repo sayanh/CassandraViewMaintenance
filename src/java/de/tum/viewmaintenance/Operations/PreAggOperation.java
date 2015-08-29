@@ -5,7 +5,6 @@ import com.datastax.driver.core.Statement;
 import com.datastax.driver.core.querybuilder.QueryBuilder;
 import com.datastax.driver.core.querybuilder.Update;
 import com.google.gson.internal.LinkedTreeMap;
-import de.tum.viewmaintenance.client.CassandraClient;
 import de.tum.viewmaintenance.client.CassandraClientUtilities;
 import de.tum.viewmaintenance.config.PrimaryKey;
 import de.tum.viewmaintenance.config.ViewMaintenanceUtilities;
@@ -13,13 +12,11 @@ import de.tum.viewmaintenance.trigger.DeltaViewTrigger;
 import de.tum.viewmaintenance.trigger.TriggerRequest;
 import de.tum.viewmaintenance.view_table_structure.Column;
 import de.tum.viewmaintenance.view_table_structure.Table;
+import net.sf.jsqlparser.expression.Expression;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.serializers.IntegerSerializer;
-import org.apache.cassandra.thrift.Cassandra;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -32,10 +29,22 @@ public class PreAggOperation extends GenericOperation {
 
     private static final Logger logger = LoggerFactory.getLogger(PreAggOperation.class);
     private static final List<String> AVAILABLE_FUNCS = Arrays.asList("sum", "count", "min", "max");
+    final static String WHERE_TABLE_INDENTIFIER = "_where_";
+    final static String JOIN_TABLE_INDENTIFIER = "_innerjoin_";
     private Row deltaTableRecord;
     private List<Table> inputViewTables;
     private List<Table> operationViewTables;
     private Table viewConfig;
+    private List<Table> whereTables;
+
+
+    public List<Table> getWhereTables() {
+        return whereTables;
+    }
+
+    public void setWhereTables(List<Table> whereTables) {
+        this.whereTables = whereTables;
+    }
 
     public void setViewConfig(Table viewConfig) {
         this.viewConfig = viewConfig;
@@ -71,8 +80,9 @@ public class PreAggOperation extends GenericOperation {
         logger.debug("##### Input tables structure {}", this.inputViewTables);
         logger.debug("##### Trigger request :: " + triggerRequest);
 
-        if ( inputViewTables == null ) {
-            // Case: No where, join and having clause
+        if ( inputViewTables == null || inputViewTables.get(0).getName().contains(WHERE_TABLE_INDENTIFIER) ) {
+            // Case: Either where or deltaview in the input for this view operation
+
             String baseTableInvolved = viewConfig.getRefBaseTable();
             String baseTableInvolvedArr[] = ViewMaintenanceUtilities.getKeyspaceAndTableNameInAnArray(baseTableInvolved);
 
@@ -111,8 +121,46 @@ public class PreAggOperation extends GenericOperation {
                     }
                 }
             }
+
+            logger.debug("### User data generated which corresponds to the target column :: " + userData);
+
+            logger.debug("### BaseTable primary key :: " + baseTablePK);
+
             String statusEntryColAggKey = ViewMaintenanceUtilities.checkForChangeInAggregationKeyInDeltaView(
                     aggregationKeyData, deltaTableRecord);
+
+            if ( inputViewTables.get(0).getName().contains(WHERE_TABLE_INDENTIFIER) ) {
+                Table whereTable = inputViewTables.get(0);
+
+                if ( whereTable.isMaterialized() ) {
+                    Row existingRecordInWhereView = ViewMaintenanceUtilities.getExistingRecordIfExists(baseTablePK,
+                            whereTable);
+
+                    if ( existingRecordInWhereView == null ) {
+
+                        if ( statusEntryColAggKey.equalsIgnoreCase("new") ) {
+                            // The new entry was not satisfying in where clause
+                            // Nothing needs to be and return
+                            logger.debug("### Newly entered column does satisfy the where conditions!!! ");
+                        } else {
+                            logger.debug("###  The old entry got deleted in the where due to update " +
+                                    "which does not satisfy where clause !!");
+                            intelligentDeletionPreAggViewTable(userData, aggregationKeyData, baseTableInvolvedArr);
+
+                        }
+
+                        logger.debug("### PreAggregation View Maintenance(entry: where view) is complete!!");
+
+                        return true;
+                    }
+
+                } else {
+                    //TODO: Process the where view in memory
+                }
+
+
+            }
+
 
             // check for the change in aggregation key over the time
             if ( statusEntryColAggKey.equalsIgnoreCase("changed") ) {
@@ -120,20 +168,11 @@ public class PreAggOperation extends GenericOperation {
                 Row existingRecordPreAggTable = ViewMaintenanceUtilities.getExistingRecordIfExists(preAggTablePK,
                         operationViewTables.get(0));
 
+                // Insert or update intelligently based on the data.
                 intelligentEntryPreAggViewTable(existingRecordPreAggTable, preAggTablePK, userData);
 
                 // Delete(actually update) the amount for the old aggregation key
-                if ( userData.get(0).equalsIgnoreCase("sum") ) {
-                    deleteFromSumPreAggView(getOldAggregationKeyAsPrimaryKey(aggregationKeyData,
-                            baseTableInvolvedArr[1]), userData.get(0) + "_" + userData.get(2));
-                } else if ( userData.get(0).equalsIgnoreCase("count") ) {
-                    deleteFromCountPreAggView(getOldAggregationKeyAsPrimaryKey(aggregationKeyData,
-                            baseTableInvolvedArr[1]), userData.get(0) + "_" + userData.get(2));
-                } else if ( userData.get(0).equalsIgnoreCase("max") ) {
-
-                } else if ( userData.get(0).equalsIgnoreCase("min") ) {
-
-                }
+                intelligentDeletionPreAggViewTable(userData, aggregationKeyData, baseTableInvolvedArr);
 
 
             } else {
@@ -144,16 +183,53 @@ public class PreAggOperation extends GenericOperation {
                     intelligentEntryPreAggViewTable(existingRecordPreAggTable, preAggTablePK, userData);
                 } else if ( statusEntryColAggKey.equalsIgnoreCase("unchanged") ) {
                     String statusTargetCol = checkForChangeInTargetColValue(userData);
-                    if ( userData.get(0).equalsIgnoreCase("sum") && statusTargetCol.equalsIgnoreCase("changed") ) {
-                        updateSumPreAggView(preAggTablePK, existingRecordPreAggTable, userData);
-                    } else if ( userData.get(0).equalsIgnoreCase("count") ) {
-//                        updateCountPreAggView(preAggTablePK, existingRecordPreAggTable, userData);
-                        // count does not undergo any change
-                    } else if ( userData.get(0).equalsIgnoreCase("max") ) {
-//                        updateMaxPreAggView();
-                    } else if ( userData.get(0).equalsIgnoreCase("min") ) {
 
+                    if ( statusTargetCol.equalsIgnoreCase("changed") ) {
+                        // Target column has changed!!
+                        if ( userData.get(0).equalsIgnoreCase("sum") ) {
+
+                            updateSumPreAggView(preAggTablePK, existingRecordPreAggTable, userData);
+                        } else if ( userData.get(0).equalsIgnoreCase("count") ) {
+                            // Entry: Delta view - nothing needs to be done
+                            // Entry: Where view or Join view with where view involvement - Newly included in where
+                            // then update else nothing needs to be done.
+                            if ( whereTables != null ) {
+                                // If old target satisfied where? if not update else nothing needs to be done.
+
+                                Table concernedWhereTable = ViewMaintenanceUtilities.getConcernedWhereTableFromWhereTablesList(
+                                        triggerRequest, inputViewTables);
+
+                                logger.debug("#### Received concerned where table :: " + concernedWhereTable);
+
+                                boolean didOldValueSatisfyWhereClause = ViewMaintenanceUtilities.didOldValueSatisfyWhereClause(viewConfig, triggerRequest,
+                                        userData, deltaTableRecord, concernedWhereTable);
+
+                                logger.debug("### Did old value satisfy where clause ? " + didOldValueSatisfyWhereClause);
+
+                                if ( didOldValueSatisfyWhereClause ) {
+                                    logger.debug("#### No further computations required !!");
+                                    logger.debug("#### It was there previously in the where view!! ");
+                                } else {
+                                    logger.debug("#### Old value was not there in the where view previously!!! ");
+                                    logger.debug("#### Incrementing count value by one!!!  ");
+                                    updateCountPreAggView(preAggTablePK, existingRecordPreAggTable, userData);
+                                }
+
+                            }
+
+                        } else if ( userData.get(0).equalsIgnoreCase("max") ) {
+
+                        } else if ( userData.get(0).equalsIgnoreCase("min") ) {
+
+                        }
                     }
+//                    if ( userData.get(0).equalsIgnoreCase("sum") && statusTargetCol.equalsIgnoreCase("changed") ) {
+//                    } else if ( userData.get(0).equalsIgnoreCase("count") && statusTargetCol.equalsIgnoreCase("changed")) {
+//                    } else if ( userData.get(0).equalsIgnoreCase("max") ) {
+////                        updateMaxPreAggView();
+//                    } else if ( userData.get(0).equalsIgnoreCase("min") ) {
+//
+//                    }
                 }
 
 
@@ -173,6 +249,21 @@ public class PreAggOperation extends GenericOperation {
         }
         return true;
 
+    }
+
+    private void intelligentDeletionPreAggViewTable(List<String> userData, List<String> aggregationKeyData,
+                                                    String[] baseTableInvolvedArr) {
+        if ( userData.get(0).equalsIgnoreCase("sum") ) {
+            deleteFromSumPreAggView(getOldAggregationKeyAsPrimaryKey(aggregationKeyData,
+                    baseTableInvolvedArr[1]), userData.get(0) + "_" + userData.get(2));
+        } else if ( userData.get(0).equalsIgnoreCase("count") ) {
+            deleteFromCountPreAggView(getOldAggregationKeyAsPrimaryKey(aggregationKeyData,
+                    baseTableInvolvedArr[1]), userData.get(0) + "_" + userData.get(2));
+        } else if ( userData.get(0).equalsIgnoreCase("max") ) {
+
+        } else if ( userData.get(0).equalsIgnoreCase("min") ) {
+
+        }
     }
 
     private void intelligentEntryPreAggViewTable(Row existingRecordPreAggTable, PrimaryKey preAggTablePK, List<String> userData) {
@@ -227,14 +318,13 @@ public class PreAggOperation extends GenericOperation {
         String statusEntryColAggKey = ViewMaintenanceUtilities.checkForChangeInAggregationKeyInDeltaView(
                 aggregationKeyData, deltaTableRecord);
 
-        if (statusEntryColAggKey.equalsIgnoreCase("unchanged")) {
+        if ( statusEntryColAggKey.equalsIgnoreCase("unchanged") ) {
             // If there is no key change then update involves subtraction of the old value and addition of the new
             newValue = (existingVal - oldValue) + Integer.parseInt(userData.get(1));
         } else {
             // If there is a key change or new addition then update involves just addition
             newValue = existingVal + Integer.parseInt(userData.get(1));
         }
-
 
 
         Update.Assignments assignments = QueryBuilder.update(operationViewTables.get(0).getKeySpace(),

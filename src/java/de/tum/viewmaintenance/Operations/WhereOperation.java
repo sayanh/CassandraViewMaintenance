@@ -150,7 +150,7 @@ public class WhereOperation extends GenericOperation {
                 boolean insertEligibleIndicator = false;
                 if ( whereExpression instanceof AndExpression ) {
                     for ( Expression expression : whereExpressions ) {
-                        Column column = getColumnObject(expression);
+                        Column column = ViewMaintenanceUtilities.getColumnObject(expression);
                         logger.debug("### Evaluating expression :: " + expression.toString());
                         if ( column.getTable().getName().equalsIgnoreCase(targetTableDerivedFromOperationTable) ) {
                             logger.debug("### Concerned expression :: " + expression.toString() + "for base table :: "
@@ -163,7 +163,7 @@ public class WhereOperation extends GenericOperation {
                                 Row existingRecord = existingRecords.get(0);
                                 logger.debug("### Existing record ### " + existingRecord);
 
-                                if ( checkExpression(whereExpression, columnMap) ) {
+                                if ( ViewMaintenanceUtilities.checkExpression(whereExpression, columnMap) ) {
                                     updateEligibleIndicator = true;
                                 } else {
                                     PrimaryKey whereTablePK = new PrimaryKey(primaryKey, columnMap.get(primaryKey).get(0),
@@ -175,7 +175,7 @@ public class WhereOperation extends GenericOperation {
                             } else {
                                 // Insert - This is a new entry
                                 logger.debug("### New Entry for whereViewTable ###");
-                                if ( checkExpression(whereExpression, columnMap) ) {
+                                if ( ViewMaintenanceUtilities.checkExpression(whereExpression, columnMap) ) {
 
                                     insertEligibleIndicator = true;
                                 } else {
@@ -194,12 +194,12 @@ public class WhereOperation extends GenericOperation {
                     }
                 } else if ( whereExpression instanceof OrExpression ) {
                     for ( Expression expression : whereExpressions ) {
-                        Column column = getColumnObject(expression);
+                        Column column = ViewMaintenanceUtilities.getColumnObject(expression);
                     }
                 } else if ( whereExpressions.size() == 1 ) {
                     logger.debug("### Evaluating expression :: " + whereExpression.toString());
                     logger.debug("### Fetch Existing rows query ::" + fetchExistingRow);
-                    Column column = getColumnObject(whereExpression);
+                    Column column = ViewMaintenanceUtilities.getColumnObject(whereExpression);
                     if ( column.getTable().getName().equalsIgnoreCase(targetTableDerivedFromOperationTable) ) {
 
                         List<Row> existingRecords = CassandraClientUtilities.commandExecution("localhost",
@@ -208,7 +208,7 @@ public class WhereOperation extends GenericOperation {
                             Row existingRecord = existingRecords.get(0);
                             logger.debug("### Existing record ### " + existingRecord);
 
-                            if ( checkExpression(whereExpression, columnMap) ) {
+                            if ( ViewMaintenanceUtilities.checkExpression(whereExpression, columnMap) ) {
                                 // Update if exists
                                 updateIntoWhereViewTable(columnMap, whereTable);
                             } else {
@@ -221,7 +221,7 @@ public class WhereOperation extends GenericOperation {
                         } else {
                             // Insert - This is a new entry
                             logger.debug("### New Entry for whereViewTable ###" + columnMap);
-                            if ( checkExpression(whereExpression, columnMap) ) {
+                            if ( ViewMaintenanceUtilities.checkExpression(whereExpression, columnMap) ) {
                                 insertIntoWhereViewTable(columnMap, whereTable);
                             }
                         }
@@ -238,79 +238,79 @@ public class WhereOperation extends GenericOperation {
     }
 
 
-    private boolean checkExpression(Expression whereExpression, Map<String, List<String>> columnMap) {
-
-        logger.debug("### Checking -- Inside checkExpression :: Column map : " + columnMap);
-        boolean result = false;
-        Column column = null;
-        String colName = "";
-        String rightExpression = "";
-        if ( whereExpression instanceof MinorThan ) {
-            column = ((Column) ((MinorThan) whereExpression).getLeftExpression());
-//            tableName = column.getTable().getName();
-            colName = column.getColumnName();
-            List<String> userData = columnMap.get(colName);
-            rightExpression = ((MinorThan) whereExpression).getRightExpression().toString();
-            if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
-                    .equalsIgnoreCase("Integer") ) {
-                if ( Integer.parseInt(userData.get(1)) < Integer.parseInt(rightExpression) ) {
-                    result = true;
-                }
-            } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
-                    .equalsIgnoreCase(("String")) ) {
-                //TODO: Need to implement
-            }
-        } else if ( whereExpression instanceof MinorThanEquals ) {
-            column = ((Column) ((MinorThanEquals) whereExpression).getLeftExpression());
-//            tableName = column.getTable().getName();
-            colName = column.getColumnName();
-            List<String> userData = columnMap.get(colName);
-            rightExpression = ((MinorThanEquals) whereExpression).getRightExpression().toString();
-            if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
-                    .equalsIgnoreCase("Integer") ) {
-                if ( Integer.parseInt(userData.get(1)) <= Integer.parseInt(rightExpression) ) {
-                    result = true;
-                }
-            } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
-                    .equalsIgnoreCase(("String")) ) {
-                //TODO: Need to implement
-            }
-        } else if ( whereExpression instanceof GreaterThan ) {
-            column = ((Column) ((GreaterThan) whereExpression).getLeftExpression());
-//            tableName = column.getTable().getName();
-            colName = column.getColumnName();
-            List<String> userData = columnMap.get(colName);
-            logger.debug("### Checking -- colName :: " + colName);
-            rightExpression = ((GreaterThan) whereExpression).getRightExpression().toString();
-            if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
-                    .equalsIgnoreCase("Integer") ) {
-                logger.debug("### Checking userdata.get(1)= {} and rightExpression = {} ", userData.get(1), rightExpression);
-                if ( Integer.parseInt(userData.get(1)) > Integer.parseInt(rightExpression) ) {
-                    result = true;
-                }
-            } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
-                    .equalsIgnoreCase(("String")) ) {
-                //TODO: Need to implement
-            }
-        } else if ( whereExpression instanceof GreaterThanEquals ) {
-            column = ((Column) ((GreaterThanEquals) whereExpression).getLeftExpression());
-//            tableName = column.getTable().getName();
-            colName = column.getColumnName();
-            List<String> userData = columnMap.get(colName);
-            rightExpression = ((GreaterThanEquals) whereExpression).getRightExpression().toString();
-            if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
-                    .equalsIgnoreCase("Integer") ) {
-                if ( Integer.parseInt(userData.get(1)) >= Integer.parseInt(rightExpression) ) {
-                    result = true;
-                }
-            } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
-                    .equalsIgnoreCase(("String")) ) {
-                //TODO: Need to implement
-            }
-        }
-        logger.debug("### Result for checkExpression() " + result);
-        return result;
-    }
+//    private boolean checkExpression(Expression whereExpression, Map<String, List<String>> columnMap) {
+//
+//        logger.debug("### Checking -- Inside checkExpression :: Column map : " + columnMap);
+//        boolean result = false;
+//        Column column = null;
+//        String colName = "";
+//        String rightExpression = "";
+//        if ( whereExpression instanceof MinorThan ) {
+//            column = ((Column) ((MinorThan) whereExpression).getLeftExpression());
+////            tableName = column.getTable().getName();
+//            colName = column.getColumnName();
+//            List<String> userData = columnMap.get(colName);
+//            rightExpression = ((MinorThan) whereExpression).getRightExpression().toString();
+//            if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
+//                    .equalsIgnoreCase("Integer") ) {
+//                if ( Integer.parseInt(userData.get(1)) < Integer.parseInt(rightExpression) ) {
+//                    result = true;
+//                }
+//            } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
+//                    .equalsIgnoreCase(("String")) ) {
+//                //TODO: Need to implement
+//            }
+//        } else if ( whereExpression instanceof MinorThanEquals ) {
+//            column = ((Column) ((MinorThanEquals) whereExpression).getLeftExpression());
+////            tableName = column.getTable().getName();
+//            colName = column.getColumnName();
+//            List<String> userData = columnMap.get(colName);
+//            rightExpression = ((MinorThanEquals) whereExpression).getRightExpression().toString();
+//            if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
+//                    .equalsIgnoreCase("Integer") ) {
+//                if ( Integer.parseInt(userData.get(1)) <= Integer.parseInt(rightExpression) ) {
+//                    result = true;
+//                }
+//            } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
+//                    .equalsIgnoreCase(("String")) ) {
+//                //TODO: Need to implement
+//            }
+//        } else if ( whereExpression instanceof GreaterThan ) {
+//            column = ((Column) ((GreaterThan) whereExpression).getLeftExpression());
+////            tableName = column.getTable().getName();
+//            colName = column.getColumnName();
+//            List<String> userData = columnMap.get(colName);
+//            logger.debug("### Checking -- colName :: " + colName);
+//            rightExpression = ((GreaterThan) whereExpression).getRightExpression().toString();
+//            if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
+//                    .equalsIgnoreCase("Integer") ) {
+//                logger.debug("### Checking userdata.get(1)= {} and rightExpression = {} ", userData.get(1), rightExpression);
+//                if ( Integer.parseInt(userData.get(1)) > Integer.parseInt(rightExpression) ) {
+//                    result = true;
+//                }
+//            } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
+//                    .equalsIgnoreCase(("String")) ) {
+//                //TODO: Need to implement
+//            }
+//        } else if ( whereExpression instanceof GreaterThanEquals ) {
+//            column = ((Column) ((GreaterThanEquals) whereExpression).getLeftExpression());
+////            tableName = column.getTable().getName();
+//            colName = column.getColumnName();
+//            List<String> userData = columnMap.get(colName);
+//            rightExpression = ((GreaterThanEquals) whereExpression).getRightExpression().toString();
+//            if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
+//                    .equalsIgnoreCase("Integer") ) {
+//                if ( Integer.parseInt(userData.get(1)) >= Integer.parseInt(rightExpression) ) {
+//                    result = true;
+//                }
+//            } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
+//                    .equalsIgnoreCase(("String")) ) {
+//                //TODO: Need to implement
+//            }
+//        }
+//        logger.debug("### Result for checkExpression() " + result);
+//        return result;
+//    }
 
     private void insertIntoWhereViewTable(Map<String, List<String>> columnMap, Table whereTable) {
 
@@ -398,26 +398,6 @@ public class WhereOperation extends GenericOperation {
 
     }
 
-
-    private Column getColumnObject(Expression expression) {
-        net.sf.jsqlparser.schema.Column column = null;
-        if ( expression instanceof MinorThan ) {
-            column = ((Column) ((MinorThan) expression).getLeftExpression());
-
-        } else if ( expression instanceof GreaterThan ) {
-            column = ((Column) ((GreaterThan) expression).getLeftExpression());
-
-        } else if ( expression instanceof MinorThanEquals ) {
-            column = ((Column) ((MinorThanEquals) expression).getLeftExpression());
-
-        } else if ( expression instanceof GreaterThanEquals ) {
-            column = ((Column) ((GreaterThanEquals) expression).getLeftExpression());
-
-        } else if ( expression instanceof EqualsTo ) {
-            column = ((Column) ((EqualsTo) expression).getLeftExpression());
-        }
-        return column;
-    }
 
     @Override
     public boolean updateTrigger(TriggerRequest triggerRequest) {

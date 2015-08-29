@@ -13,6 +13,7 @@ public class Table {
     private String keySpace;
     private String basedOn;
     private String actionType;
+    private boolean isMaterialized;
     //TODO: Merge refBaseTables and refBaseTable, I did not want to disturb the working code.
 
     private List<String> refBaseTables;
@@ -92,6 +93,13 @@ public class Table {
         this.columns = columns;
     }
 
+    public boolean isMaterialized() {
+        return isMaterialized;
+    }
+
+    public void setIsMaterialized(boolean isMaterialized) {
+        this.isMaterialized = isMaterialized;
+    }
 
     @Override
     public String toString() {
