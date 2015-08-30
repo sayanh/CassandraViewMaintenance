@@ -282,7 +282,7 @@ public final class ViewMaintenanceUtilities {
 
 
         if ( existingRows.size() > 0 ) {
-            logger.debug("#### Existing record in view table{} :: {}", table.getKeySpace() +
+            logger.debug("#### Existing record in view table {} :: {}", table.getKeySpace() +
                     "." + table.getName(), existingRows.get(0));
             return existingRows.get(0);
         }

@@ -52,6 +52,7 @@ public class ResultViewOperation extends GenericOperation {
                 logger.debug("#### Join insert trigger for result view maintenance!!");
             } else if ( inputViewTables.size() == 1 && inputViewTables.get(0).getName().contains(AGG_TABLE_INDENTIFIER) ) {
                 logger.debug("#### Agg insert trigger for result view maintenance!!");
+                aggInsertTrigger(triggerRequest);
             } else if ( inputViewTables.size() == 1 && inputViewTables.get(0).getName().contains(PREAGG_TABLE_INDENTIFIER) ) {
                 logger.debug("#### Preagg insert trigger for result view maintenance!!");
                 preaggInsertTrigger(triggerRequest);
@@ -62,6 +63,210 @@ public class ResultViewOperation extends GenericOperation {
         }
 
         return true;
+    }
+
+
+    private void aggInsertTrigger(TriggerRequest triggerRequest) {
+
+        Table aggTable = inputViewTables.get(0);
+        String functionName = "";
+        String targetColName = "";
+        String colAggKey = "";
+
+        Map<String, ColumnDefinition> aggTableDesc = ViewMaintenanceUtilities.getTableDefinitition(aggTable.getKeySpace(),
+                aggTable.getName());
+        Map<String, List<String>> curUserData = new HashMap<>();
+        // Column Name Mapped to -> internalCassandraType, value, isPrimaryKey
+
+
+        PrimaryKey curColAggKeyPKResultView = null;
+        PrimaryKey curColAggKeyPKAggView = null;
+        Row existingCurRecordAggKeyAggView = null;
+        LinkedTreeMap dataJson = triggerRequest.getDataJson();
+        Map<String, List<String>> oldUserData = new HashMap<>();
+
+
+        for ( Map.Entry<String, ColumnDefinition> aggViewColEntry : aggTableDesc.entrySet() ) {
+            String derivedPrefix = aggViewColEntry.getKey().substring(0, aggViewColEntry.getKey()
+                    .indexOf("_"));
+            String derivedColumnName = aggViewColEntry.getKey().substring(aggViewColEntry.getKey()
+                    .indexOf("_") + 1);
+
+            if ( AVAILABLE_FUNCS.contains(derivedPrefix) ) {
+
+                targetColName = derivedColumnName;
+                functionName = derivedPrefix;
+
+                List<String> tempResultViewColData = new ArrayList<>();
+                //Format: internalCassandraType, value, isPrimaryKey
+
+                tempResultViewColData.add(aggViewColEntry.getValue().type.toString());
+                tempResultViewColData.add("");
+                tempResultViewColData.add("false");
+                curUserData.put(aggViewColEntry.getKey(), tempResultViewColData);
+                oldUserData.put(aggViewColEntry.getKey(), tempResultViewColData);
+
+            } else if ( aggViewColEntry.getValue().isPartitionKey() ) {
+
+                curColAggKeyPKResultView = new PrimaryKey(derivedColumnName, aggViewColEntry.getValue().type.toString(),
+                        ((String) dataJson.get(derivedColumnName)).replaceAll("'", ""));
+
+                curColAggKeyPKAggView = new PrimaryKey(aggViewColEntry.getKey(), aggViewColEntry.getValue().type.toString(),
+                        ((String) dataJson.get(derivedColumnName)).replaceAll("'", ""));
+
+                colAggKey = derivedColumnName;
+
+                existingCurRecordAggKeyAggView = ViewMaintenanceUtilities.getExistingRecordIfExists(curColAggKeyPKAggView,
+                        aggTable);
+
+                logger.debug("#### existingRecordCurAggKeyAggView : " + existingCurRecordAggKeyAggView);
+
+                List<String> tempResultViewColData = new ArrayList<>();
+                //Format: internalCassandraType, value, isPrimaryKey
+
+                tempResultViewColData.add(aggViewColEntry.getValue().type.toString());
+                tempResultViewColData.add(((String) dataJson.get(derivedColumnName)).replaceAll("'", ""));
+                tempResultViewColData.add("true");
+                curUserData.put(derivedColumnName, tempResultViewColData);
+                oldUserData.put(derivedColumnName, tempResultViewColData);
+            }
+
+
+        }
+
+        logger.debug("#### Tentative user data for cur agg key(result view) : " + curUserData);
+
+        Row existingCurRecordResultView = ViewMaintenanceUtilities.getExistingRecordIfExists(curColAggKeyPKResultView,
+                operationViewTables.get(0));
+
+
+        logger.debug("#### curColAggKeyPKResultView : " + curColAggKeyPKResultView);
+
+        if ( existingCurRecordAggKeyAggView != null ) {
+            List<String> tempList = curUserData.get(functionName + "_" + targetColName);
+            if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(tempList.get(0)).equalsIgnoreCase("Integer") ) {
+                tempList.set(1, existingCurRecordAggKeyAggView.getInt(functionName + "_" + targetColName) + "");
+            } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(tempList.get(0)).equalsIgnoreCase("String") ) {
+                tempList.set(1, existingCurRecordAggKeyAggView.getString(functionName + "_" + targetColName));
+            }
+
+            curUserData.put(functionName + "_" + targetColName, tempList);
+
+            logger.debug("#### Final user data for cur agg key(result view) : " + curUserData);
+
+
+            aggActualInsertProcess(curUserData);
+
+        } else {
+
+            logger.debug("#### There is no record in the agg view for the cur agg key!!!!");
+
+            if ( existingCurRecordResultView != null ) {
+                deleteFromResultView(curColAggKeyPKResultView);
+            }
+        }
+
+
+        List<String> aggregationKeyData = new ArrayList<>();
+        aggregationKeyData.add(colAggKey); // Aggregation key column name
+        aggregationKeyData.add(curUserData.get(curColAggKeyPKResultView.getColumnName()).get(0)); // Aggregation column type
+
+        logger.debug("### Aggregation key data :: " + aggregationKeyData);
+        String statusChangeInColAggKey = ViewMaintenanceUtilities.checkForChangeInAggregationKeyInDeltaView(aggregationKeyData,
+                deltaTableRecord);
+
+        if ( statusChangeInColAggKey.equalsIgnoreCase("changed") ) {
+
+            PrimaryKey oldAggPKey = null;
+            if ( curColAggKeyPKResultView.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+                oldAggPKey = new PrimaryKey(curColAggKeyPKAggView.getColumnName(),
+                        curColAggKeyPKAggView.getColumnInternalCassType(),
+                        deltaTableRecord.getInt(colAggKey + DeltaViewTrigger.LAST) + "");
+            } else if ( curColAggKeyPKResultView.getColumnJavaType().equalsIgnoreCase("String") ) {
+                oldAggPKey = new PrimaryKey(curColAggKeyPKAggView.getColumnName(),
+                        curColAggKeyPKAggView.getColumnInternalCassType(),
+                        deltaTableRecord.getString(colAggKey + DeltaViewTrigger.LAST));
+            }
+
+            PrimaryKey oldResultPKey = new PrimaryKey(colAggKey, oldAggPKey.getColumnInternalCassType(),
+                    oldAggPKey.getColumnValueInString());
+
+            logger.debug("#### Old primary key : " + oldAggPKey);
+
+            Row existingOldRecordAggView = ViewMaintenanceUtilities.getExistingRecordIfExists(oldAggPKey,
+                    aggTable);
+
+            Row existingOldRecordResultView = ViewMaintenanceUtilities.getExistingRecordIfExists(oldResultPKey,
+                    operationViewTables.get(0));
+
+            if ( existingOldRecordAggView != null ) {
+
+                logger.debug("#### existingOldRecordAggView : " + existingOldRecordAggView);
+
+                // Resetting the values for oldUserData
+                for ( Map.Entry<String, List<String>> oldUserDataEntry : curUserData.entrySet() ) {
+                    List<String> tempOldDataColList = oldUserDataEntry.getValue();
+//                        if (oldUserDataEntry.getKey().equalsIgnoreCase(functionName + "_" + targetColName)) {
+                    if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(tempOldDataColList.get(0))
+                            .equalsIgnoreCase("Integer") ) {
+
+                        tempOldDataColList.set(1, existingOldRecordAggView.getInt(oldUserDataEntry.getKey()) + "");
+                    } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(tempOldDataColList.get(0))
+                            .equalsIgnoreCase("String") ) {
+                        tempOldDataColList.set(1, existingOldRecordAggView.getString(oldUserDataEntry.getKey()));
+                    }
+                    oldUserData.put(oldUserDataEntry.getKey(), tempOldDataColList);
+//                        } else if (oldUserDataEntry.getKey().equalsIgnoreCase(colAggKey)) {
+//                if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(tempOldDataColList.get(0))
+//                        .equalsIgnoreCase("Integer") ) {
+//
+//                    tempOldDataColList.set(1, existingOldRecordAggView.getInt(oldUserDataEntry.getKey()) + "");
+//                } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(tempOldDataColList.get(0))
+//                        .equalsIgnoreCase("String") ) {
+//                    tempOldDataColList.set(1, existingOldRecordAggView.getString(oldUserDataEntry.getKey()));
+//                }
+                    oldUserData.put(oldUserDataEntry.getKey(), tempOldDataColList);
+//                        }
+                }
+
+                logger.debug("### oldUserData with values :: " + oldUserData);
+                insertIntoResultView(oldUserData);
+            } else {
+                // The data for the old col agg key is not present in the agg view
+                // So if it is there the in the result view then we gotta delete it
+
+                if ( existingOldRecordResultView != null ) {
+                    logger.debug("### Deleting old col agg key data from the result view!!! ");
+                    deleteFromResultView(oldResultPKey);
+                }
+            }
+        }
+    }
+
+
+    private void aggActualInsertProcess(Map<String, List<String>> userData) {
+
+        List<String> colNames = new ArrayList<>();
+        List<Object> objects = new ArrayList<>();
+
+        for ( Map.Entry<String, List<String>> entry : userData.entrySet() ) {
+            String javaDataType = ViewMaintenanceUtilities.getJavaTypeFromCassandraType(entry.getValue().get(0));
+            colNames.add(entry.getKey());
+            if ( javaDataType.equalsIgnoreCase("Integer") ) {
+                objects.add(Integer.parseInt(entry.getValue().get(1)));
+            } else if ( javaDataType.equalsIgnoreCase("String") ) {
+                objects.add(entry.getValue().get(1));
+            }
+        }
+
+        Statement insertIntoAggViewQuery = QueryBuilder.insertInto(operationViewTables.get(0).getKeySpace(),
+                operationViewTables.get(0).getName()).values(colNames.toArray(new String[colNames.size()]),
+                objects.toArray());
+
+        logger.debug("### Insert query into Agg View :: " + insertIntoAggViewQuery);
+
+        CassandraClientUtilities.commandExecution("localhost", insertIntoAggViewQuery);
+
     }
 
     private void preaggInsertTrigger(TriggerRequest triggerRequest) {
@@ -159,7 +364,7 @@ public class ResultViewOperation extends GenericOperation {
                         + DeltaViewTrigger.LAST));
 
             } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(aggregationKeyData.get(1))
-                    .equalsIgnoreCase("String")) {
+                    .equalsIgnoreCase("String") ) {
 
                 oldAggKeyPK.setColumnValueInString(deltaTableRecord.getString(aggregationKeyData.get(0)
                         + DeltaViewTrigger.LAST));

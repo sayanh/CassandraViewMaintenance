@@ -172,6 +172,7 @@ public class PreAggOperation extends GenericOperation {
                 intelligentEntryPreAggViewTable(existingRecordPreAggTable, preAggTablePK, userData);
 
                 // Delete(actually update) the amount for the old aggregation key
+                // If where is the entry then
                 intelligentDeletionPreAggViewTable(userData, aggregationKeyData, baseTableInvolvedArr);
 
 
@@ -339,8 +340,9 @@ public class PreAggOperation extends GenericOperation {
 
         // Getting the status of the aggregate key change
         List<String> aggregationKeyData = new ArrayList<>();
-        aggregationKeyData.add(preAggTablePK.getColumnName().substring(preAggTablePK.getColumnName().indexOf("_") + 1));
+
         aggregationKeyData.add(preAggTablePK.getColumnInternalCassType());
+        aggregationKeyData.add(preAggTablePK.getColumnName().substring(preAggTablePK.getColumnName().indexOf("_") + 1));
         String statusEntryColAggKey = ViewMaintenanceUtilities.checkForChangeInAggregationKeyInDeltaView(
                 aggregationKeyData, deltaTableRecord);
 
@@ -387,7 +389,7 @@ public class PreAggOperation extends GenericOperation {
 
         // If there is a key change or new addition then update involves just addition
 
-        logger.debug("### Existing value :: {} is {}", modifiedColumnName , existingVal);
+        logger.debug("### Existing value :: {} is {}", modifiedColumnName, existingVal);
         newValue = existingVal + Integer.parseInt(userData.get(1));
 
         Update.Assignments assignments = QueryBuilder.update(operationViewTables.get(0).getKeySpace(),
@@ -504,6 +506,9 @@ public class PreAggOperation extends GenericOperation {
                 operationViewTables.get(0));
         logger.debug("### Existing record for OldAggKey :: " + existingRecordOldAggKey);
         logger.debug("### Checking -- target column name :: " + targetColName);
+        if ( existingRecordOldAggKey == null ) {
+            return;
+        }
         int oldAggValue = existingRecordOldAggKey.getInt(targetColName);
         int subtractionAmount = deltaTableRecord.getInt(targetColName.split("_")[1] + DeltaViewTrigger.LAST);
         Update.Assignments assignments = QueryBuilder.update(operationViewTables.get(0).getKeySpace(),
