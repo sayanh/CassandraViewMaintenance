@@ -96,8 +96,8 @@ public class WhereOperation extends GenericOperation {
         String primaryKey = null;
         while ( dataIter.hasNext() ) {
             String tempDataKey = (String) dataIter.next();
-            logger.debug("Key: " + tempDataKey);
-            logger.debug("Value: " + dataJson.get(tempDataKey));
+//            logger.debug("Key: " + tempDataKey);
+//            logger.debug("Value: " + dataJson.get(tempDataKey));
             for ( Map.Entry<String, ColumnDefinition> columnDefinitionEntry : baseTableDesc.entrySet() ) {
                 ColumnDefinition columnDefinition = columnDefinitionEntry.getValue();
                 if ( tempDataKey.equalsIgnoreCase(columnDefinition.name.toString()) ) {

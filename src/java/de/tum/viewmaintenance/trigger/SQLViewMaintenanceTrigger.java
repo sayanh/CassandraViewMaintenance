@@ -346,6 +346,7 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess {
 
                 AggOperation aggOperation = AggOperation.getInstance(preAggViewTable.getTables(),
                         aggViewTableCreated);
+                aggOperation.setHavingExpression(expressionHaving);
                 operationsInvolved.put("having", expressionHaving.toString());
                 operationQueue.add(aggOperation);
             }

@@ -51,8 +51,8 @@ public class DeltaViewTrigger extends TriggerProcess {
                 while ( dataIter.hasNext() ) {
                     String columnNameData = (String) dataIter.next();
 
-                    logger.debug("Column name in the data: " + columnNameData);
-                    logger.debug("Value: " + dataMap.get(columnNameData));
+//                    logger.debug("Column name in the data: " + columnNameData);
+//                    logger.debug("Value: " + dataMap.get(columnNameData));
                     if ( columnName.equalsIgnoreCase(columnNameData) ) {
                         Column col = new Column();
                         col.setName(columnName);
@@ -107,7 +107,7 @@ public class DeltaViewTrigger extends TriggerProcess {
             // Getting the row in the delta table which was inserted or updated
 
             String javaTypePrimaryKey = columnMapBaseTable.get(primaryKey).getJavaDataType();
-            logger.debug("Computed Java type for extracted value {} is {}", primaryKeyCassandraDataType, javaTypePrimaryKey);
+//            logger.debug("Computed Java type for extracted value {} is {}", primaryKeyCassandraDataType, javaTypePrimaryKey);
 
             Row existingRecordInDeltaView = CassandraClientUtilities.getAllRows(request.getBaseTableKeySpace(),
                     request.getBaseTableName() + DELTAVIEW_SUFFIX, QueryBuilder.eq(primaryKey,
