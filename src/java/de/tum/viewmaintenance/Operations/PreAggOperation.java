@@ -172,8 +172,30 @@ public class PreAggOperation extends GenericOperation {
                 intelligentEntryPreAggViewTable(existingRecordPreAggTable, preAggTablePK, userData);
 
                 // Delete(actually update) the amount for the old aggregation key
-                // If where is the entry then
-                intelligentDeletionPreAggViewTable(userData, aggregationKeyData, baseTableInvolvedArr);
+                // If where is the entry then check the old value satisfied where or not
+                // If it did not satisfy then no need to delete
+
+                if ( inputViewTables != null && inputViewTables.get(0).getName().contains(WHERE_TABLE_INDENTIFIER) ) {
+
+                    logger.debug("### Where entry and agg value changed!!!");
+                    Table concernedWhereTable = ViewMaintenanceUtilities.getConcernedWhereTableFromWhereTablesList(
+                            triggerRequest, inputViewTables);
+
+                    logger.debug("#### Received concerned where table :: " + concernedWhereTable);
+
+                    boolean didOldValueSatisfyWhereClause = ViewMaintenanceUtilities.didOldValueSatisfyWhereClause(viewConfig, triggerRequest,
+                            userData, deltaTableRecord, concernedWhereTable);
+
+                    logger.debug("### Did old value satisfy where clause ? " + didOldValueSatisfyWhereClause);
+                    logger.debug("### aggregation key data :: " + aggregationKeyData);
+
+                    if ( didOldValueSatisfyWhereClause ) {
+                        intelligentDeletionPreAggViewTable(userData, aggregationKeyData, baseTableInvolvedArr);
+                    }
+                } else {
+
+                    intelligentDeletionPreAggViewTable(userData, aggregationKeyData, baseTableInvolvedArr);
+                }
 
 
             } else {
@@ -204,6 +226,9 @@ public class PreAggOperation extends GenericOperation {
                                 if ( didOldValueSatisfyWhereClause ) {
                                     logger.debug("#### Old record was present in where previously !!");
                                     logger.debug("#### Need to update the existing value!! ");
+                                    logger.debug("#### Checking --- preAggTablePK {} ", preAggTablePK);
+                                    logger.debug("#### Checking --- existingRecordPreAggTable {} ", existingRecordPreAggTable);
+                                    logger.debug("#### Checking --- user data : {}", userData);
                                     updateSumPreAggView(preAggTablePK, existingRecordPreAggTable, userData);
                                 } else {
                                     logger.debug("#### Old value was not there in the where view previously!!! ");
@@ -341,16 +366,19 @@ public class PreAggOperation extends GenericOperation {
         // Getting the status of the aggregate key change
         List<String> aggregationKeyData = new ArrayList<>();
 
-        aggregationKeyData.add(preAggTablePK.getColumnInternalCassType());
         aggregationKeyData.add(preAggTablePK.getColumnName().substring(preAggTablePK.getColumnName().indexOf("_") + 1));
+        aggregationKeyData.add(preAggTablePK.getColumnInternalCassType());
         String statusEntryColAggKey = ViewMaintenanceUtilities.checkForChangeInAggregationKeyInDeltaView(
                 aggregationKeyData, deltaTableRecord);
 
         if ( statusEntryColAggKey.equalsIgnoreCase("unchanged") ) {
             // If there is no key change then update involves subtraction of the old value and addition of the new
+            logger.debug("### updateSumPreAggView | unchanged !!!");
             newValue = (existingVal - oldValue) + Integer.parseInt(userData.get(1));
         } else {
             // If there is a key change or new addition then update involves just addition
+
+            logger.debug("### updateSumPreAggView | not unchanged !!!");
             newValue = existingVal + Integer.parseInt(userData.get(1));
         }
 
