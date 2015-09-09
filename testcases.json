@@ -1,0 +1,96 @@
+{
+  "only_insertion": {
+    "queries": [
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 1 , 10 , 'x1' , 1 )",
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 2 , 1 , 'x2' , 1 )"
+      ]
+      },
+
+  "update_with_same_aggkey": {
+    "queries": [
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 1 , 10 , 'x1' , 1 )",
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 1 , 1 , 'x1' , 1 )"
+      ]
+      }, 
+
+  "update_with_different_aggkey": {
+    "queries": [
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 1 , 11 , 'x1' , 1 )",
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 1 , 16 , 'x2' , 1 )"
+      ]
+      },
+
+  "update_with_same_aggkey_where_succ": {
+    "queries": [
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 1 , 1 , 'x1' , 1 )",
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 1 , 12 , 'x1' , 1 )"
+      ]
+      }, 
+
+  "update_with_same_aggkey_where_fail": {
+    "queries": [
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 1 , 12 , 'x1' , 1 )",
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 1 , 1 , 'x1' , 1 )"
+      ]
+      }, 
+
+  "update_with_same_aggkey_where_succ_agg_succ": {
+    "queries": [
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 1 , 1 , 'x1' , 1 )",
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 2 , 11 , 'x1' , 1 )",
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 1 , 11 , 'x1' , 1 )"
+      ]
+      }, 
+
+  "update_with_same_aggkey_where_succ_agg_fail": {
+    "queries": [
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 1 , 10 , 'x1' , 1 )",
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 2 , 11 , 'x1' , 1 )",
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 1 , 1 , 'x1' , 1 )"
+      ]
+      }, 
+
+  "only_insertion_where_succ": {
+    "queries": [
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 1 , 12 , 'x1' , 1 )",
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 2 , 14 , 'x1' , 1 )"
+      ]
+      }, 
+
+  "only_insertion_where_fail": {
+    "queries": [
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 1 , 1 , 'x1' , 1 )",
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 2 , 14 , 'x1' , 1 )"
+      ]
+      }, 
+
+  "update_with_different_aggkey_where_succ": {
+    "queries": [
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 1 , 1 , 'x1' , 1 )",
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 1 , 11 , 'x2' , 1 )"
+      ]
+      }, 
+
+  "update_with_different_aggkey_where_fail": {
+    "queries": [
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 1 , 12 , 'x1' , 1 )",
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 1 , 1 , 'x2' , 1 )"
+      ]
+      }, 
+
+  "update_with_diff_aggkey_where_agg_succ": {
+    "queries": [
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 1 , 8 , 'x1' , 1 )",
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 2 , 11 , 'x2' , 1 )",
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 1 , 19 , 'x2' , 1 )"
+      ]
+      }, 
+
+  "update_with_diff_aggkey_where_succ_agg_fail": {
+    "queries": [
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 1 , 19 , 'x1' , 1 )",
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 1 , 11 , 'x1' , 1 )",
+      "insert into schematest.emp ( user_id, age, colaggkey_x, joinkey ) values ( 1 , 2 , 'x2' , 1 )"
+      ]
+      }
+}

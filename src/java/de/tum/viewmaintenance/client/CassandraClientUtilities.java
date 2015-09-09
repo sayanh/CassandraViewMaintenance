@@ -88,7 +88,7 @@ public class CassandraClientUtilities {
                 query.append(col.getName() + " " + col.getDataType() + primaryKey + ",");
             }
             String finalQuery = query.substring(0, query.length() - 1) + ");";
-            System.out.println("Final query = " + finalQuery);
+            logger.debug("Final query = " + finalQuery);
             results = session.execute(finalQuery);
 
             logger.debug("Successfully created table {}.{}", table.getKeySpace(), table.getName());
@@ -128,7 +128,7 @@ public class CassandraClientUtilities {
             StringBuffer query = new StringBuffer();
             query.append("drop table " + table.getKeySpace() + "." + table.getName() + ";");
 
-            System.out.println("Final query = " + query);
+            logger.debug("Final query = " + query);
             results = session.execute(query.toString());
 
             logger.debug("Successfully delete table {}.{}", table.getKeySpace(), table.getName());
@@ -155,7 +155,7 @@ public class CassandraClientUtilities {
             StringBuffer query = new StringBuffer();
             query.append("Select columnfamily_name from system.schema_columnfamilies where columnfamily_name = '" + table.getName() + "' ALLOW FILTERING ;");
 
-            System.out.println("Final query = " + query);
+            logger.debug("Final query = " + query);
             results = session.execute(query.toString());
             String resultString = results.all().toString();
             logger.debug("Resultset {}", resultString);
@@ -231,14 +231,35 @@ public class CassandraClientUtilities {
             logger.debug("Error !!!" + e.getMessage());
             return null;
         } finally {
-            if (!session.isClosed()) {
+            if (session!=null && !session.isClosed()) {
                 session.close();
             }
-            if (!cluster.isClosed()) {
+            if (cluster!=null && !cluster.isClosed()) {
                 CassandraClientUtilities.closeConnection(cluster);
             }
         }
         return result;
+    }
+
+    public static void deleteCommandExecution(String ip, Statement query) {
+        Cluster cluster = null;
+        List<Row> result = null;
+        Session session = null;
+        try {
+            cluster = CassandraClientUtilities.getConnection(ip);
+            session = cluster.connect();
+            session.execute(query);
+        } catch (Exception e) {
+            e.printStackTrace();
+            logger.debug("Error !!!" + e.getMessage());
+        } finally {
+            if (session!=null && !session.isClosed()) {
+                session.close();
+            }
+            if (cluster!=null && !cluster.isClosed()) {
+                CassandraClientUtilities.closeConnection(cluster);
+            }
+        }
     }
 
     public static List<Row> getAllRows(String keyspace, String table , Clause equal) {
@@ -292,10 +313,10 @@ public class CassandraClientUtilities {
         viewTable.setKeySpace(baseTable.getKeySpace());
         List<Column> columns = baseTable.getColumns();
         List<Column> viewTableCols = new ArrayList<>();
-        System.out.println("columns size = " + columns.size());
+        logger.debug("columns size = " + columns.size());
         for (int i = 0; i < columns.size(); i++) {
             Column col = columns.get(i);
-            System.out.println("working on col = " + col.getName());
+            logger.debug("working on col = " + col.getName());
             Column viewCol = new Column();
             if (col.isPrimaryKey()) {
                 viewCol.setName(col.getName());

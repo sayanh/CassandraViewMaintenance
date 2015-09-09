@@ -104,6 +104,7 @@ public class Table {
     @Override
     public String toString() {
         return "Table name: " + name +
+                ", Keyspace: " + keySpace +
                 ", BasedOn: " + basedOn +
                 ", ActionType: " + actionType +
                 ", refBaseTable: " + refBaseTable +

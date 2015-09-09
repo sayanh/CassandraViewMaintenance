@@ -4,6 +4,7 @@ import com.datastax.driver.core.*;
 import com.datastax.driver.core.Statement;
 import com.datastax.driver.core.querybuilder.QueryBuilder;
 import com.google.gson.internal.LinkedTreeMap;
+import de.tum.viewmaintenance.client.CassandraClient;
 import de.tum.viewmaintenance.client.CassandraClientUtilities;
 import de.tum.viewmaintenance.trigger.DeltaViewTrigger;
 import de.tum.viewmaintenance.trigger.TriggerRequest;
@@ -649,4 +650,104 @@ public final class ViewMaintenanceUtilities {
     }
 
 
+    public static List<String> getAllViews() {
+        logger.debug("Getting all the tables from localhost...");
+        Statement statement = QueryBuilder.select("keyspace_name", "columnfamily_name")
+                .from("system", "schema_columnfamilies");
+        List<Row> rows = CassandraClientUtilities.commandExecution("localhost", statement);
+        List<String> finalListViews = new ArrayList<>();
+        for ( Row row : rows ) {
+            if ( row.getString("keyspace_name").equalsIgnoreCase("schema2") ) {
+                finalListViews.add(row.getString("keyspace_name") + "." +
+                        row.getString("columnfamily_name"));
+//            } else if ( row.getString("keyspace_name").equalsIgnoreCase("schematest") &&
+//                    row.getString("columnfamily_name").contains("deltaview") ) {
+//                finalListViews.add(row.getString("keyspace_name") + "." +
+//                        row.getString("columnfamily_name"));
+            }
+
+
+        }
+
+        logger.debug("#### Checking | getAllViews() " + finalListViews);
+        return finalListViews;
+    }
+
+    public static List<String> getAllBaseTables() {
+        logger.debug("Getting all the base tables from localhost...");
+        Statement statement = QueryBuilder.select("keyspace_name", "columnfamily_name")
+                .from("system", "schema_columnfamilies");
+        List<Row> rows = CassandraClientUtilities.commandExecution("localhost", statement);
+        List<String> finalListViews = new ArrayList<>();
+        for ( Row row : rows ) {
+            if ( row.getString("keyspace_name").equalsIgnoreCase("schematest")
+//                     && !row.getString("columnfamily_name").contains("deltaview")
+                    ) {
+                finalListViews.add(row.getString("keyspace_name") + "." +
+                        row.getString("columnfamily_name"));
+            }
+        }
+        return finalListViews;
+    }
+
+    public static void deleteAllViews() {
+        for ( String viewTableName : getAllViews() ) {
+            Cluster cluster = CassandraClientUtilities.getConnection("localhost");
+            CassandraClientUtilities.deleteTable(cluster,
+                    ViewMaintenanceUtilities.getKeyspaceAndTableNameInAnArray(viewTableName)[0],
+                    ViewMaintenanceUtilities.getKeyspaceAndTableNameInAnArray(viewTableName)[1]);
+            CassandraClientUtilities.closeConnection(cluster);
+        }
+    }
+
+    public static void resetAllViews() {
+        for ( String viewTableCombinedName : getAllViews() ) {
+            String viewKeyspaceName = ViewMaintenanceUtilities.getKeyspaceAndTableNameInAnArray(viewTableCombinedName)[0];
+            String viewTableName = ViewMaintenanceUtilities.getKeyspaceAndTableNameInAnArray(viewTableCombinedName)[1];
+
+            Statement getExistingRowsQuery = QueryBuilder.select().all().from(viewKeyspaceName, viewTableName);
+
+            List<Row> getExistingRows = CassandraClientUtilities.commandExecution("localhost", getExistingRowsQuery);
+            logger.debug("#### Existing records in {} are :: {}", viewTableCombinedName, getExistingRows);
+
+            Statement columnDefQuery = QueryBuilder.select().all().from("system", "schema_columns").where(
+                    QueryBuilder.eq("keyspace_name", viewKeyspaceName)).and(QueryBuilder.eq("columnfamily_name", viewTableName));
+
+            List<Row> columnDefs = CassandraClientUtilities.commandExecution("localhost", columnDefQuery);
+
+            logger.debug("#### Columndef :: " + columnDefs);
+            String primaryKeyDataType = "";
+            String primaryKeyColName = "";
+            String primaryKeyJavaType = "";
+
+            for ( Row row: columnDefs ) {
+                if ( row.getString("type").equalsIgnoreCase("partition_key") ) {
+                    primaryKeyDataType = row.getString("validator");
+                    primaryKeyColName = row.getString("column_name");
+                    primaryKeyJavaType = ViewMaintenanceUtilities.getJavaTypeFromCassandraType(primaryKeyDataType);
+                    break;
+                }
+            }
+
+            logger.debug("### Primary key values, datatype: {}, java type: {} and column_name :: {}",
+                    primaryKeyDataType, primaryKeyJavaType, primaryKeyColName);
+            Statement deleteQuery = null;
+            for ( Row row : getExistingRows ) {
+
+                if (primaryKeyJavaType.equalsIgnoreCase("String") ) {
+                    deleteQuery = QueryBuilder.delete().from(viewKeyspaceName, viewTableName)
+                            .where(QueryBuilder.eq(primaryKeyColName, row.getString(primaryKeyColName)));
+                } else if ( primaryKeyJavaType.equalsIgnoreCase("Integer") ) {
+                    deleteQuery = QueryBuilder.delete().from(viewKeyspaceName, viewTableName)
+                            .where(QueryBuilder.eq(primaryKeyColName, row.getInt(primaryKeyColName)));
+                }
+
+                logger.debug("#### Checking :: deleteQuery:: " + deleteQuery);
+
+                CassandraClientUtilities.deleteCommandExecution("localhost", deleteQuery);
+            }
+
+
+        }
+    }
 }

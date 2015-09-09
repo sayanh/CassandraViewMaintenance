@@ -367,13 +367,16 @@ public class WhereOperation extends GenericOperation {
                 }
             }
 
-            updateQuery = ViewMaintenanceUtilities.removesCommaSpace(updateQuery);
-            updateQuery.append(whereStr);
-            logger.debug("### Final update query to where view table :: " + updateQuery.toString());
 
-//            CassandraClientUtilities.commandExecution("localhost", updateQuery.toString());
 
         }
+
+        updateQuery = ViewMaintenanceUtilities.removesCommaSpace(updateQuery);
+        updateQuery.append(whereStr);
+        logger.debug("### Final update query to where view table :: " + updateQuery.toString());
+
+        CassandraClientUtilities.commandExecution("localhost", updateQuery.toString());
+
 
     }
 

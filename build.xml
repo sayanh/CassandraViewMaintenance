@@ -1780,4 +1780,41 @@
             file="${build.dir}/${final.name}-javadoc.jar"
             classifier="javadoc"/>
   </target>
+
+<!-- Make sure that the instance of Cassandra is running-->
+    <target name="viewmaintenance-tests" depends="build-test" description="Tests viewmaintenance">
+        <path id="all-test-classes-path">
+            <fileset dir="${test.unit.src}" excludes="**/pig/*.java" includes="**/${test.name}.java" />
+        </path>
+        <property name="all-test-classes" refid="all-test-classes-path"/>
+        <java classname="de.tum.viewmaintenance.OverallViewMaintenanceTests" fork="true">
+            <classpath>
+                <path refid="cassandra.classpath"/>
+                <pathelement location="${test.conf}"/>
+                <pathelement location="${build.test.dir}/classes"/>
+            </classpath>
+            <jvmarg value="-Dcassandra.home=/home/anarchy/work/sources/cassandra"/>
+            <jvmarg value="-Dstorage-config=${test.conf}"/>
+            <jvmarg value="-javaagent:${basedir}/lib/jamm-0.3.0.jar" />
+            <jvmarg value="-ea"/>
+        </java>
+    </target>
+    <!-- Make sure that the instance of Cassandra is running-->
+    <target name="sanity-tests" depends="build-test" description="Tests for viewmaintenance">
+        <path id="all-test-classes-path">
+            <fileset dir="${test.unit.src}" excludes="**/pig/*.java" includes="**/${test.name}.java" />
+        </path>
+        <property name="all-test-classes" refid="all-test-classes-path"/>
+        <java classname="de.tum.viewmaintenance.RunTestCases" fork="true">
+            <classpath>
+                <path refid="cassandra.classpath"/>
+                <pathelement location="${test.conf}"/>
+                <pathelement location="${build.test.dir}/classes"/>
+            </classpath>
+            <jvmarg value="-Dcassandra.home=/home/anarchy/work/sources/cassandra"/>
+            <jvmarg value="-Dstorage-config=${test.conf}"/>
+            <jvmarg value="-javaagent:${basedir}/lib/jamm-0.3.0.jar" />
+            <jvmarg value="-ea"/>
+        </java>
+    </target>
 </project>

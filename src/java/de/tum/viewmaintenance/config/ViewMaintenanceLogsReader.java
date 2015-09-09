@@ -32,7 +32,7 @@ public class ViewMaintenanceLogsReader extends Thread {
     private static final String LOG_FILE = "viewMaintenceCommitLogsv2.log";
     private static final String LOG_FILE_LOCATION = System.getProperty("cassandra.home") + "/logs/";
     private static final Logger logger = LoggerFactory.getLogger(ViewMaintenanceLogsReader.class);
-    private static final int SLEEP_INTERVAL = 10000;
+    private static final int SLEEP_INTERVAL = 1000;
 
 
     public ViewMaintenanceLogsReader() {
