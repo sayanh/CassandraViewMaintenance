@@ -461,7 +461,24 @@ public class PreAggOperation extends GenericOperation {
 
     private void updateSumPreAggViewOnlyAdding(PrimaryKey preAggTablePK, Row existingRecordPreAggTable, List<String> userData) {
         String modifiedColumnName = userData.get(0) + "_" + userData.get(2);
-        int existingVal = existingRecordPreAggTable.getInt(modifiedColumnName);
+
+        // Get the existing record now from the pre agg table
+        Statement existingRecordQueryInPreAggTable = null;
+
+        if (preAggTablePK.getColumnJavaType().equalsIgnoreCase("Integer")) {
+            existingRecordQueryInPreAggTable = QueryBuilder.select().all().from(operationViewTables.get(0).getKeySpace(),
+                    operationViewTables.get(0).getName()).where(QueryBuilder.eq(preAggTablePK.getColumnName(),
+                    Integer.parseInt(preAggTablePK.getColumnValueInString())));
+        } else if (preAggTablePK.getColumnJavaType().equalsIgnoreCase("String")) {
+            existingRecordQueryInPreAggTable = QueryBuilder.select().all().from(operationViewTables.get(0).getKeySpace(),
+                    operationViewTables.get(0).getName()).where(QueryBuilder.eq(preAggTablePK.getColumnName(), preAggTablePK.getColumnValueInString()));
+        }
+
+        List<Row> existingRecordPreAggTableLatest = CassandraClientUtilities.commandExecution("localhost", existingRecordQueryInPreAggTable);
+
+
+        int existingVal = existingRecordPreAggTableLatest.get(0).getInt(modifiedColumnName);
+//        int existingVal = existingRecordPreAggTable.getInt(modifiedColumnName);
         int oldValue = deltaTableRecord.getInt(userData.get(2) + DeltaViewTrigger.LAST);
         int newValue = 0;
 

@@ -38,7 +38,7 @@ public class RunTestCases {
         try {
             Map<String, List<String>> testCasesMap = runTestCases.readTestCasesFile();
             for ( Map.Entry<String, List<String>> testCase : testCasesMap.entrySet() ) {
-
+                logger.info("Analysis| ####   ####");
                 logger.info("Analysis| #### Test Case::  " + testCase.getKey());
                 System.out.println("#### Test Case::  " + testCase.getKey());
 
@@ -60,7 +60,10 @@ public class RunTestCases {
                     Statement selectAllQuery = QueryBuilder.select().all().from(viewNameArr[0], viewNameArr[1]);
                     List<Row> existingRecords = CassandraClientUtilities.commandExecution("localhost", selectAllQuery);
                     logger.info("Analysis| Existing records = " + existingRecords);
+
                 }
+
+//                logger.info("Analysis| Result: " + runTestCases.getTestResult(testCase.getKey()), );
 
                 logger.info("***************** Reset Cassandra DB Start *******************");
 
@@ -118,5 +121,13 @@ public class RunTestCases {
         }
 
         return testCasesMap;
+    }
+
+
+    private String getTestResult(String testCaseCategory) {
+        String result = "";
+
+
+        return result;
     }
 }

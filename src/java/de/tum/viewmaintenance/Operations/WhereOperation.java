@@ -85,7 +85,7 @@ public class WhereOperation extends GenericOperation {
         logger.debug("### Checking -- table description for baseTable:{} is \n {}", triggerRequest.getBaseTableKeySpace()
                 + "." + triggerRequest.getBaseTableName(), baseTableDesc);
 
-        boolean deciderForNewRow = false; // If true then the stream of information needs to stored else deleted if already present
+        boolean deciderForNewRow = false; // If true then the stream of information needs to be stored else deleted if already present
 
         Map<String, List<String>> columnMap = new HashMap<>();
         String viewTableName = TABLE_PREFIX + triggerRequest.getBaseTableName();
@@ -351,10 +351,10 @@ public class WhereOperation extends GenericOperation {
                 // Setting the where string for primary key
                 if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(column.getValue().get(0))
                         .equalsIgnoreCase("Integer") ) {
-                    whereStr = " where " + column.getKey() + "= " + column.getValue().get(1) + ", ";
+                    whereStr = " where " + column.getKey() + " = " + column.getValue().get(1);
                 } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(column.getValue().get(0))
                         .equalsIgnoreCase("String") ) {
-                    whereStr = " where " + column.getKey() + "= '" + column.getValue().get(1) + "', ";
+                    whereStr = " where " + column.getKey() + " = '" + column.getValue().get(1) + "'";
                 }
             } else {
                 // For all other columns
@@ -371,7 +371,10 @@ public class WhereOperation extends GenericOperation {
 
         }
 
+
         updateQuery = ViewMaintenanceUtilities.removesCommaSpace(updateQuery);
+        logger.debug("### Checking :: update without where clause :: " + updateQuery.toString());
+        logger.debug("### Checking :: where clause :: " + whereStr);
         updateQuery.append(whereStr);
         logger.debug("### Final update query to where view table :: " + updateQuery.toString());
 
