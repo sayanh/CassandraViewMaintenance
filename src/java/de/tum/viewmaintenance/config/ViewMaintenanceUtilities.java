@@ -67,8 +67,22 @@ public final class ViewMaintenanceUtilities {
             javaType = "String";
         } else if ( cassandraType.equalsIgnoreCase("org.apache.cassandra.db.marshal.Int32Type") ) {
             javaType = "Integer";
+        } else if (cassandraType.equalsIgnoreCase("org.apache.cassandra.db.ma" +
+                "rshal.ListType(org.apache.cassandra.db.marshal.Int32Type)") ) {
+            javaType = "list<Integer>";
+        } else if (cassandraType.equalsIgnoreCase("org.apache.cassandra.db.ma" +
+                "rshal.ListType(org.apache.cassandra.db.marshal.UTF8Type)") ) {
+            javaType = "list<String>";
+        } else if (cassandraType.equalsIgnoreCase("org.apache.cassandra.db.marshal.MapType(org.apache.cassandra.db.marshal.Int32Type,org.apache.cassandra.db.marshal.Int32Type)") ) {
+            javaType = "Map<Integer, Integer>";
+        } else if (cassandraType.equalsIgnoreCase("org.apache.cassandra.db.marshal.MapType(org.apache.cassandra.db.marshal.Int32Type,org.apache.cassandra.db.marshal.UTF8Type)") ) {
+            javaType = "Map<Integer, String>";
+        } else if (cassandraType.equalsIgnoreCase("org.apache.cassandra.db.marshal.MapType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.Int32Type)") ) {
+            javaType = "Map<String, Integer>";
+        } else if (cassandraType.equalsIgnoreCase("org.apache.cassandra.db.marshal.MapType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.UTF8Type)") ) {
+            javaType = "Map<String, String>";
         }
-        return javaType;
+            return javaType;
     }
 
     /**
@@ -360,7 +374,7 @@ public final class ViewMaintenanceUtilities {
             }
         }
 
-        logger.debug("#### Result for checkForChangeInAggregationKey :: " + result);
+        logger.debug("#### Result for chnage in joinKey :: " + result);
         return result;
     }
 

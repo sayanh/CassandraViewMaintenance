@@ -163,7 +163,7 @@ public class WhereOperation extends GenericOperation {
                                 Row existingRecord = existingRecords.get(0);
                                 logger.debug("### Existing record ### " + existingRecord);
 
-                                if ( ViewMaintenanceUtilities.checkExpression(whereExpression, columnMap) ) {
+                                if ( ViewMaintenanceUtilities.checkExpression(expression, columnMap) ) {
                                     updateEligibleIndicator = true;
                                 } else {
                                     PrimaryKey whereTablePK = new PrimaryKey(primaryKey, columnMap.get(primaryKey).get(0),
