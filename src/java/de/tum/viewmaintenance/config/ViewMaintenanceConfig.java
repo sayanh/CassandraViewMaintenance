@@ -99,12 +99,10 @@ public class ViewMaintenanceConfig {
     public static void setupViewMaintenanceInfrastructure() {
         logger.debug("************************ Creating view maintenance tables ******************");
         Views viewsObj = Views.getInstance();
-//        System.out.println("hash = " + viewsObj.hashCode());
         List<Table> tempTables = viewsObj.getTables();
         logger.debug("Tables present are = " + tempTables);
         Cluster cluster = CassandraClientUtilities.getConnection("localhost");
         boolean resultKeyspace = CassandraClientUtilities.createKeySpace(cluster, viewsObj.getKeyspace());
-//        CassandraClientUtilities.closeConnection(cluster);
         logger.debug("Process to create keyspace is = " + resultKeyspace);
         if (resultKeyspace) {
             for (Table t : tempTables) {
@@ -123,10 +121,10 @@ public class ViewMaintenanceConfig {
         CassandraClientUtilities.closeConnection(cluster);
     }
 
-    /*
+    /**
     * This method creates the view tables for reverse join.
     *
-    */
+    **/
     public static void setupReverseJoinViews(Cluster cluster, Table table) {
         logger.debug("********************** Creating the reverse join view table **********************");
         String baseTablesInvolved = table.getRefBaseTable();

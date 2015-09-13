@@ -14,6 +14,9 @@ import de.tum.viewmaintenance.config.ViewMaintenanceUtilities;
 import de.tum.viewmaintenance.trigger.DeltaViewTrigger;
 import de.tum.viewmaintenance.trigger.TriggerRequest;
 import de.tum.viewmaintenance.view_table_structure.Table;
+import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
+import net.sf.jsqlparser.expression.operators.conditional.OrExpression;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
 import net.sf.jsqlparser.schema.Column;
 import net.sf.jsqlparser.statement.select.Join;
@@ -33,10 +36,15 @@ public class ReverseJoinOperation extends GenericOperation {
     private static final Logger logger = LoggerFactory.getLogger(ReverseJoinOperation.class);
     private Row deltaTableRecord;
     private GenericOperation sqlOperation;
-    private List<Table> inputViewTable;
+    private List<Table> inputViewTables;
     private List<Table> operationViewTables;
     private Table viewConfig;
+    private Expression whereExpression;
     private List<Join> joins;
+
+    public void setWhereExpression(Expression whereExpression) {
+        this.whereExpression = whereExpression;
+    }
 
     public void setJoins(List<Join> joins) {
         this.joins = joins;
@@ -63,11 +71,11 @@ public class ReverseJoinOperation extends GenericOperation {
     }
 
     public List<Table> getInputViewTable() {
-        return inputViewTable;
+        return inputViewTables;
     }
 
-    public void setInputViewTable(List<Table> inputViewTable) {
-        this.inputViewTable = inputViewTable;
+    public void setInputViewTable(List<Table> inputViewTables) {
+        this.inputViewTables = inputViewTables;
     }
 
     public List<Table> getOperationViewTables() {
@@ -90,19 +98,22 @@ public class ReverseJoinOperation extends GenericOperation {
         Iterator dataIter = keySet.iterator();
         EqualsTo onExpresssionJoin = (EqualsTo) joins.get(0).getOnExpression();
         List<String> tablesInvolved = viewConfig.getRefBaseTables();
-        boolean isResultSuccessful = false;
         Statement existingRecordQuery = null;
-        String primaryColName = ((Column) onExpresssionJoin.getLeftExpression()).getColumnName(); //Primary col of the view table
-        String leftTableName = ((Column) onExpresssionJoin.getLeftExpression()).getTable().getName();
-        String rightTableName = ((Column) onExpresssionJoin.getRightExpression()).getTable().getName();
+        String primaryColName = ((Column) onExpresssionJoin.getLeftExpression()).getColumnName(); //Primary col of the reverse view table
+//        String leftTableName = ((Column) onExpresssionJoin.getLeftExpression()).getTable().getName();
+//        String rightTableName = ((Column) onExpresssionJoin.getRightExpression()).getTable().getName();
         Map<String, Map<String, ColumnDefinition>> tableDesc = new HashMap<>();
         String primaryValue = "";
         PrimaryKey actualPrimaryKey = new PrimaryKey();
-        PrimaryKey reverseJoinViewTablePrimaryKey = new PrimaryKey();
+        PrimaryKey reverseJoinViewTablePrimaryKey = null;
         Table whereTableInvolved = null;
 
+        List<Expression> whereExpressions = ViewMaintenanceUtilities.getParticularWhereExpressionBasedOnBaseTableOperation(viewConfig.getSqlString(),
+                triggerRequest.getBaseTableName());
+
+
         // Getting the concerned whereViewTable involved
-        for ( Table whereTable : inputViewTable ) {
+        for ( Table whereTable : inputViewTables ) {
             String tempNameArr[] = whereTable.getName().split("_");
             if ( tempNameArr[2].equalsIgnoreCase(triggerRequest.getBaseTableName()) ) {
                 whereTableInvolved = whereTable;
@@ -119,6 +130,9 @@ public class ReverseJoinOperation extends GenericOperation {
         }
 
         Map<String, List<String>> columnMap = new HashMap<>();
+        // Format::
+        // Key: Name of the column
+        // Value : CassandraInternalType, ValueInString, isPrimaryKeyForReverseJoinTable
 
         for ( Map.Entry<String, Map<String, ColumnDefinition>> table : tableDesc.entrySet() ) {
 
@@ -139,7 +153,7 @@ public class ReverseJoinOperation extends GenericOperation {
 
 
                 while ( dataIter.hasNext() ) {
-                    List<String> tempColDescList = new ArrayList<>();
+                    List<String> tempColDescList = new ArrayList<>(); // Format: CassandraInternalType, ValueInString, isPrimaryKeyForReverseJoinTable
                     String tempDataKey = (String) dataIter.next();
                     logger.debug("Key: " + tempDataKey);
                     logger.debug("Value: " + dataJson.get(tempDataKey));
@@ -149,18 +163,14 @@ public class ReverseJoinOperation extends GenericOperation {
                         tempColDescList.add(primaryValue);
                         tempColDescList.add("true");
                         columnMap.put(tempDataKey, tempColDescList);
-                        reverseJoinViewTablePrimaryKey.setColumnInternalCassType(table.getValue().get(tempDataKey).type.toString());
-                        reverseJoinViewTablePrimaryKey.setColumnJavaType(ViewMaintenanceUtilities
-                                .getJavaTypeFromCassandraType(reverseJoinViewTablePrimaryKey.getColumnInternalCassType()));
-                        reverseJoinViewTablePrimaryKey.setColumnValueInString(primaryValue);
-                        reverseJoinViewTablePrimaryKey.setColumnName(primaryColName);
+                        reverseJoinViewTablePrimaryKey = new PrimaryKey(primaryColName, table.getValue().get(tempDataKey).type.toString(),
+                                primaryValue);
                     } else {
-                        tempColDescList.add(table.getValue().get(tempDataKey).type.toString());
                         tempColDescList.add(((String) dataJson.get(tempDataKey)).replaceAll("'", ""));
                         tempColDescList.add("false");
                         if ( ViewMaintenanceUtilities.checkPresenceOfColumnInDifferentTable(table.getKey(),
                                 tempDataKey, tableDesc) ) {
-                            columnMap.put(tempDataKey + "_" + triggerRequest.getBaseTableName(), tempColDescList);
+                            columnMap.put(triggerRequest.getBaseTableName() + "_" + tempDataKey, tempColDescList);
                         } else {
                             columnMap.put(tempDataKey, tempColDescList);
                         }
@@ -178,113 +188,179 @@ public class ReverseJoinOperation extends GenericOperation {
 
         }
 
+        logger.debug("#### Values for the columnMap :: " + columnMap);
+
+        Column whereTargetCol = ViewMaintenanceUtilities.getColumnFromExpression(whereExpressions.get(0), columnMap);
+
+        List<String> wherePKData = new ArrayList<>();
+        wherePKData.add("");
+        wherePKData.add("");
+        wherePKData.add(whereTargetCol.getColumnName());
+
+        logger.debug("#### Checking :: wherePKData :: " + wherePKData);
+
         // Select from the where table to see whether this record which needs to be maintained
 
-        List<Row> viewEligibilityResults = null;
+        List<Row> whereTableExistingRows = null;
         if ( actualPrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
-            Statement viewMaintenanceEligibilityQuery = QueryBuilder.select().all().from(whereTableInvolved.getKeySpace(),
+            Statement whereTableExistentQuery = QueryBuilder.select().all().from(whereTableInvolved.getKeySpace(),
                     whereTableInvolved.getName()).where(QueryBuilder.eq(actualPrimaryKey.getColumnName(),
                     Integer.parseInt(actualPrimaryKey.getColumnValueInString())));
-            logger.debug("### ViewMaintenance eligibility query(Integer) :: " + viewMaintenanceEligibilityQuery);
-            viewEligibilityResults = CassandraClientUtilities.commandExecution("localhost",
-                    viewMaintenanceEligibilityQuery);
+            logger.debug("### ViewMaintenance eligibility query(Integer) :: " + whereTableExistentQuery);
+            whereTableExistingRows = CassandraClientUtilities.commandExecution("localhost",
+                    whereTableExistentQuery);
         } else if ( actualPrimaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
-            Statement viewMaintenanceEligibilityQuery = QueryBuilder.select().all().from(whereTableInvolved.getKeySpace(),
+            Statement whereTableExistentQuery = QueryBuilder.select().all().from(whereTableInvolved.getKeySpace(),
                     whereTableInvolved.getName()).where(QueryBuilder.eq(actualPrimaryKey.getColumnName(),
                     actualPrimaryKey.getColumnValueInString()));
-            logger.debug("### ViewMaintenance eligibility query(String) :: " + viewMaintenanceEligibilityQuery);
+            logger.debug("### ViewMaintenance eligibility query(String) :: " + whereTableExistentQuery);
 
-            viewEligibilityResults = CassandraClientUtilities.commandExecution("localhost",
-                    viewMaintenanceEligibilityQuery);
+            whereTableExistingRows = CassandraClientUtilities.commandExecution("localhost",
+                    whereTableExistentQuery);
         }
+        List<String> joinKeyData = new ArrayList<>();
+        joinKeyData.add(primaryColName);
+        joinKeyData.add(reverseJoinViewTablePrimaryKey.getColumnInternalCassType());
 
-        if ( viewEligibilityResults.size() == 0 ) {
-            logger.debug("#### viewEligibilityResults are nil hence reverse join view maintenance is not required!!");
-            return true;
+        logger.debug("#### Checking :: " + joinKeyData);
+
+        // Note: Although we say this is a new join key, it actually means newData(new based on the primary key)
+        String statusCurJoinKey = ViewMaintenanceUtilities.checkForChangeInJoinKeyInDeltaView(joinKeyData, deltaTableRecord);
+
+        if ( statusCurJoinKey.equalsIgnoreCase("new") ) {
+
+            logger.debug("#### Case:: new record..need to intelligently update the join key in the join tables #### ");
+
+            if ( whereTableExistingRows.size() == 0 ) {
+                logger.debug("#### Case: Newly present data and where does not satisfy...no action taken!!");
+                return true;
+            } else {
+                logger.debug("### whereViewEligibility Results for already existing join key:: " + whereTableExistingRows.get(0));
+
+                logger.debug("### Case(new): When there is corrs value in the where table for the same " +
+                        "join key!! ### ");
+
+                logger.debug("Intelligent update of the data for the key!!!");
+                intelligentEntryPreAggViewTable(reverseJoinViewTablePrimaryKey, actualPrimaryKey, triggerRequest,
+                        columnMap);
+            }
+
+
         } else {
-            logger.debug("### viewEligibility Results :: " + viewEligibilityResults.get(0));
 
-            logger.debug("### Reverse Join View Maintenance starts ### ");
-        }
+            logger.debug("#### Case:: {} #### ", statusCurJoinKey);
 
 
-//        List<ColumnDefinitions.Definition> columnDefinitions = deltaTableRecord.getColumnDefinitions().asList();
-        if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(columnMap.get(primaryColName).get(0))
-                .equalsIgnoreCase("Integer") ) {
+            Table concernedWhereTable = ViewMaintenanceUtilities.getConcernedWhereTableFromWhereTablesList(
+                    triggerRequest, inputViewTables);
 
-            if ( deltaTableRecord.getInt(primaryColName + DeltaViewTrigger.LAST) == 0 ) {
+            logger.debug("#### Received concerned where table :: " + concernedWhereTable);
 
-                // Checking if there is an already existing entry for the join key received
-                Row existingRecord = getExistingRecordIfExistsInReverseJoinViewTable(reverseJoinViewTablePrimaryKey);
-                if ( existingRecord != null ) {
-                    logger.debug("### Existing record in reverse join viewtable ## " +
-                            "{} is ::{}", operationViewTables.get(0).getKeySpace() + "." +
-                            operationViewTables.get(0).getName(), existingRecord.toString());
-                     // Update the already existing record with the new record
-                    updateReverseJoinViewTable(columnMap, operationViewTables.get(0), existingRecord,
-                            reverseJoinViewTablePrimaryKey, actualPrimaryKey);
 
-                } else {
-                    // Need a new entry in the view table
-                    insertIntoReverseJoinViewTable(columnMap, operationViewTables.get(0), reverseJoinViewTablePrimaryKey,
-                            actualPrimaryKey);
-                }
+            boolean didOldValueSatisfyWhereClause = ViewMaintenanceUtilities.didOldValueSatisfyWhereClause
+                    (viewConfig, triggerRequest, wherePKData, deltaTableRecord, concernedWhereTable);
 
+            if ( didOldValueSatisfyWhereClause ) {
+                // Delete from the join key data in the reverse join table
+                logger.debug("#### Deleting the contents in the old join key as it does not exist now!!!");
+            }
+
+
+            if ( whereTableExistingRows == null || whereTableExistingRows.size() == 0 ) {
+                logger.debug("#### whereTableExistingRows are nil hence nothing to do here!!!");
+                // Nothing is required to do
+                logger.debug("### The old value was not there and the new value does not satisfy where !! ");
 
             } else {
+                logger.debug("### viewEligibility Results :: " + whereTableExistingRows.get(0));
 
-                // There exists an old entry for the primary key in the delta view
+                logger.debug("### Case(ch/un-changed): When there is some value in the where table for the same " +
+                        "join key!! ### ");
 
-                if ( deltaTableRecord.getInt(primaryColName + DeltaViewTrigger.CURRENT) ==
-                        deltaTableRecord.getInt(primaryColName + DeltaViewTrigger.LAST) ) {
-                    // Already an entry exists in the reverse join view with the same join key
-                    Row existingRecord = getExistingRecordIfExistsInReverseJoinViewTable(reverseJoinViewTablePrimaryKey);
-                    if ( existingRecord != null ) {
-                        logger.debug("### Existing record in table:{} is ::{}", operationViewTables.get(0).getKeySpace() + "." +
-                                operationViewTables.get(0).getName(), existingRecord.toString());
-                        updateReverseJoinViewTable(columnMap, operationViewTables.get(0), existingRecord,
-                                reverseJoinViewTablePrimaryKey, actualPrimaryKey);
-
-                    }
-
-                } else {
-                    // Already an entry exists in the reverse join view with the different join key
-                    // Delete the old entry in the reverse join view
-                    // Insert/Update a new entry in the reverse join view
-                    Row existingRecord = getExistingRecordIfExistsInReverseJoinViewTable(reverseJoinViewTablePrimaryKey);
-                    if ( existingRecord != null ) {
-                        logger.debug("### Existing record in table:{} is ::{}", operationViewTables.get(0).getKeySpace() + "." +
-                                operationViewTables.get(0).getName(), existingRecord.toString());
-
-                        // Update the reverse join view
-                        updateReverseJoinViewTable(columnMap, operationViewTables.get(0), existingRecord,
-                                reverseJoinViewTablePrimaryKey, actualPrimaryKey);
-                    } else {
-                        // There is no such key for the curr join key
-                        // Fresh insertion of the record required
-
-                        insertIntoReverseJoinViewTable(columnMap, operationViewTables.get(0), reverseJoinViewTablePrimaryKey,
-                                actualPrimaryKey);
-                    }
-
-                    PrimaryKey oldReverseJoinPrimaryKey = new PrimaryKey();
-                    oldReverseJoinPrimaryKey.setColumnName(actualPrimaryKey.getColumnName());
-                    oldReverseJoinPrimaryKey.setColumnValueInString(deltaTableRecord
-                            .getInt(primaryColName + DeltaViewTrigger.LAST) + "");
-                    oldReverseJoinPrimaryKey.setColumnJavaType(actualPrimaryKey.getColumnJavaType());
-                    oldReverseJoinPrimaryKey.setColumnInternalCassType(actualPrimaryKey.getColumnInternalCassType());
-
-                    deleteFromReverseViewTable(oldReverseJoinPrimaryKey, actualPrimaryKey);
-                    logger.debug("### Existing Record Query for curr joinkey ::" + existingRecordQuery);
-                }
+                logger.debug("Intelligent update of the data for the key!!!");
 
 
             }
-
-        } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(columnMap.get(primaryColName).get(0))
-                .equalsIgnoreCase("String") ) {
-            System.out.println("");
         }
+
+
+//        if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(columnMap.get(primaryColName).get(0))
+//                .equalsIgnoreCase("Integer") ) {
+//
+//            if ( deltaTableRecord.getInt(primaryColName + DeltaViewTrigger.LAST) == 0 ) {
+//
+//                // Checking if there is an already existing entry for the join key received
+//                Row existingRecord = getExistingRecordIfExistsInReverseJoinViewTable(reverseJoinViewTablePrimaryKey);
+//                if ( existingRecord != null ) {
+//                    logger.debug("### Existing record in reverse join viewtable ## " +
+//                            "{} is ::{}", operationViewTables.get(0).getKeySpace() + "." +
+//                            operationViewTables.get(0).getName(), existingRecord.toString());
+//                    // Update the already existing record with the new record
+//                    updateReverseJoinViewTable(columnMap, operationViewTables.get(0), existingRecord,
+//                            reverseJoinViewTablePrimaryKey, actualPrimaryKey);
+//
+//                } else {
+//                    // Need a new entry in the view table
+//                    logger.debug("### Join key does not exist hence inserting it for the first time!!");
+//                    insertIntoReverseJoinViewTable(columnMap, operationViewTables.get(0), reverseJoinViewTablePrimaryKey,
+//                            actualPrimaryKey);
+//                }
+//
+//
+//            } else {
+//
+//                // There exists an old entry for the primary key in the delta view
+//
+//                if ( deltaTableRecord.getInt(primaryColName + DeltaViewTrigger.CURRENT) ==
+//                        deltaTableRecord.getInt(primaryColName + DeltaViewTrigger.LAST) ) {
+//                    // Already an entry exists in the reverse join view with the same join key
+//                    Row existingRecord = getExistingRecordIfExistsInReverseJoinViewTable(reverseJoinViewTablePrimaryKey);
+//                    if ( existingRecord != null ) {
+//                        logger.debug("### Existing record in table:{} is ::{}", operationViewTables.get(0).getKeySpace() + "." +
+//                                operationViewTables.get(0).getName(), existingRecord.toString());
+//                        updateReverseJoinViewTable(columnMap, operationViewTables.get(0), existingRecord,
+//                                reverseJoinViewTablePrimaryKey, actualPrimaryKey);
+//
+//                    }
+//
+//                } else {
+//                    // Already an entry exists in the reverse join view with the different join key
+//                    // Delete the old entry in the reverse join view
+//                    // Insert/Update a new entry in the reverse join view
+//                    Row existingRecord = getExistingRecordIfExistsInReverseJoinViewTable(reverseJoinViewTablePrimaryKey);
+//                    if ( existingRecord != null ) {
+//                        logger.debug("### Existing record in table:{} is ::{}", operationViewTables.get(0).getKeySpace() + "." +
+//                                operationViewTables.get(0).getName(), existingRecord.toString());
+//
+//                        // Update the reverse join view
+//                        updateReverseJoinViewTable(columnMap, operationViewTables.get(0), existingRecord,
+//                                reverseJoinViewTablePrimaryKey, actualPrimaryKey);
+//                    } else {
+//                        // There is no such key for the curr join key
+//                        // Fresh insertion of the record required
+//
+//                        insertIntoReverseJoinViewTable(columnMap, operationViewTables.get(0), reverseJoinViewTablePrimaryKey,
+//                                actualPrimaryKey);
+//                    }
+//
+//                    PrimaryKey oldReverseJoinPrimaryKey = new PrimaryKey();
+//                    oldReverseJoinPrimaryKey.setColumnName(actualPrimaryKey.getColumnName());
+//                    oldReverseJoinPrimaryKey.setColumnValueInString(deltaTableRecord
+//                            .getInt(primaryColName + DeltaViewTrigger.LAST) + "");
+//                    oldReverseJoinPrimaryKey.setColumnJavaType(actualPrimaryKey.getColumnJavaType());
+//                    oldReverseJoinPrimaryKey.setColumnInternalCassType(actualPrimaryKey.getColumnInternalCassType());
+//
+//                    deleteFromReverseViewTable(oldReverseJoinPrimaryKey, actualPrimaryKey);
+//                    logger.debug("### Existing Record Query for curr joinkey ::" + existingRecordQuery);
+//                }
+
+
+//            }
+//
+//        } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(columnMap.get(primaryColName).get(0))
+//                .equalsIgnoreCase("String") ) {
+//            System.out.println("");
+//        }
 
 
         return false;
@@ -307,10 +383,10 @@ public class ReverseJoinOperation extends GenericOperation {
             for ( Map.Entry<String, ColumnDefinition> columnDefinitionEntry : tableDesc.entrySet() ) {
 
                 if ( oldReverseJoinPrimaryKey.getColumnName().equalsIgnoreCase(columnDefinitionEntry.getKey()) ) {
-                    if (oldReverseJoinPrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer")) {
+                    if ( oldReverseJoinPrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
                         whereClause = QueryBuilder.eq(oldReverseJoinPrimaryKey.getColumnName(),
                                 Integer.parseInt(oldReverseJoinPrimaryKey.getColumnValueInString()));
-                    } else if (actualPrimaryKey.getColumnJavaType().equalsIgnoreCase("String")) {
+                    } else if ( actualPrimaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
                         whereClause = QueryBuilder.eq(oldReverseJoinPrimaryKey.getColumnName(),
                                 oldReverseJoinPrimaryKey.getColumnValueInString());
                     }
@@ -339,7 +415,7 @@ public class ReverseJoinOperation extends GenericOperation {
                                     Integer.class, String.class);
                             Map<Integer, String> newData = new HashMap<>();
                             for ( Map.Entry<Integer, String> tempColEntry : tempCol.entrySet() ) {
-                                if ( tempColEntry.getValue().equalsIgnoreCase(oldReverseJoinPrimaryKey.getColumnValueInString())) {
+                                if ( tempColEntry.getValue().equalsIgnoreCase(oldReverseJoinPrimaryKey.getColumnValueInString()) ) {
                                     logger.debug("### Escaped and not added to the result map :: " + tempColEntry);
                                 } else {
                                     newData.put(tempColEntry.getKey(), tempColEntry.getValue());
@@ -354,7 +430,7 @@ public class ReverseJoinOperation extends GenericOperation {
                                     String.class, Integer.class);
                             Map<String, Integer> newData = new HashMap<>();
                             for ( Map.Entry<String, Integer> tempColEntry : tempCol.entrySet() ) {
-                                if ( tempColEntry.getValue() == Integer.parseInt(oldReverseJoinPrimaryKey.getColumnValueInString())) {
+                                if ( tempColEntry.getValue() == Integer.parseInt(oldReverseJoinPrimaryKey.getColumnValueInString()) ) {
                                     logger.debug("### Escaped and not added to the result map :: " + tempColEntry);
                                 } else {
                                     newData.put(tempColEntry.getKey(), tempColEntry.getValue());
@@ -368,7 +444,7 @@ public class ReverseJoinOperation extends GenericOperation {
                                     String.class, String.class);
                             Map<String, String> newData = new HashMap<>();
                             for ( Map.Entry<String, String> tempColEntry : tempCol.entrySet() ) {
-                                if ( tempColEntry.getValue().equalsIgnoreCase(oldReverseJoinPrimaryKey.getColumnValueInString())) {
+                                if ( tempColEntry.getValue().equalsIgnoreCase(oldReverseJoinPrimaryKey.getColumnValueInString()) ) {
                                     logger.debug("### Escaped and not added to the result map :: " + tempColEntry);
                                 } else {
                                     newData.put(tempColEntry.getKey(), tempColEntry.getValue());
@@ -422,25 +498,58 @@ public class ReverseJoinOperation extends GenericOperation {
     }
 
 
-    private void insertIntoReverseJoinViewTable(Map<String, List<String>> columnMap, Table reverseJoinTableConfig,
-                                                PrimaryKey reverseJoinViewPK, PrimaryKey actualPrimaryKey) {
-//        StringBuffer insertQuery = new StringBuffer("insert into " + reverseJoinTableConfig.getKeySpace() + "." +
-//                reverseJoinTableConfig.getName() + "(");
-//        StringBuffer valuesPart = new StringBuffer("values ( ");
+    /**
+     * Intelligent entry of data into the reverse join table
+     **/
+    private void intelligentEntryPreAggViewTable(PrimaryKey reverseJoinTablePK, PrimaryKey actualPrimaryKey, TriggerRequest triggerRequest,
+                                                 Map<String, List<String>> columnMap) {
+        Row existingRecord = getExistingRecordIfExistsInReverseJoinViewTable(
+                reverseJoinTablePK);
 
+        if ( existingRecord == null ) {
+            logger.debug("#### Fresh insertion of join key!!");
+            insertIntoReverseJoinViewTable(columnMap, reverseJoinTablePK, actualPrimaryKey,
+                    triggerRequest);
+        } else {
+            logger.debug("#### Join key already exists....will update the record!!");
+//            updateReverseJoinViewTable(columnMap, reverseJoinTablePK);
+
+        }
+
+    }
+
+
+    private void insertIntoReverseJoinViewTable(Map<String, List<String>> columnMap,
+                                                PrimaryKey reverseJoinViewPK, PrimaryKey actualPrimaryKey, TriggerRequest triggerRequest) {
+
+        //Note: Actual primary key - name of the column is based on the reverse join view.
+        logger.debug("#### Checking || Inserting into Join View Table ::columnMap:: " + columnMap);
         List<String> columnNames = new ArrayList<>();
         List<Object> objects = new ArrayList<>();
         for ( Map.Entry<String, List<String>> columnEntry : columnMap.entrySet() ) {
             // Checking for the view table primary key
             if ( columnEntry.getKey().equalsIgnoreCase(reverseJoinViewPK.getColumnName()) ) {
+                columnNames.add(columnEntry.getKey());
                 if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(columnEntry.getValue().get(0))
                         .equalsIgnoreCase("Integer") ) {
-                    columnNames.add(columnEntry.getKey());
-                    objects.add(columnEntry.getValue().get(1));
+                    objects.add(Integer.parseInt(columnEntry.getValue().get(1)));
                 } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(columnEntry.getValue().get(0))
                         .equalsIgnoreCase("String") ) {
-                    columnNames.add(columnEntry.getKey());
                     objects.add(columnEntry.getValue().get(1));
+                }
+            } else if ( columnEntry.getKey().equalsIgnoreCase(triggerRequest
+                    .getBaseTableName() + "_" + actualPrimaryKey.getColumnName()) ) {
+
+                if ( actualPrimaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
+                    List<String> tempList = new ArrayList<>();
+                    tempList.add(actualPrimaryKey.getColumnValueInString());
+                    columnNames.add(columnEntry.getKey());
+                    objects.add(tempList);
+                } else if ( actualPrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+                    List<Integer> tempList = new ArrayList<>();
+                    tempList.add(Integer.parseInt(actualPrimaryKey.getColumnValueInString()));
+                    columnNames.add(columnEntry.getKey());
+                    objects.add(tempList);
                 }
 
             } else {
@@ -482,18 +591,22 @@ public class ReverseJoinOperation extends GenericOperation {
             }
 
         }
+        Table reverseJoinTableConfig = operationViewTables.get(0);
 
         Statement finalInsertQuery = QueryBuilder.insertInto(reverseJoinTableConfig.getKeySpace(),
-                reverseJoinTableConfig.getName()).values((String[])columnNames.toArray(), objects.toArray());
-        logger.debug("### Final insert query :: " + finalInsertQuery);
+                reverseJoinTableConfig.getName()).values(columnNames.toArray(new String[columnNames.size()])
+                , objects.toArray());
+        logger.debug("### Final insert query to reverseJoin Table :: " + finalInsertQuery);
 
-//        CassandraClientUtilities.commandExecution("localhost", finalInsertQuery);
+        CassandraClientUtilities.commandExecution("localhost", finalInsertQuery);
     }
 
 
-    private static void updateReverseJoinViewTable(Map<String, List<String>> columnMap, Table reverseJoinTableConfig,
-                                                   Row existingRecord, PrimaryKey reverseJoinViewTablePK,
-                                                   PrimaryKey actualPrimaryKey) {
+    private void updateReverseJoinViewTable(Map<String, List<String>> columnMap,
+                                            Row existingRecord, PrimaryKey reverseJoinViewTablePK,
+                                            PrimaryKey actualPrimaryKey) {
+
+        Table reverseJoinTableConfig = operationViewTables.get(0);
 
 //        StringBuffer updateQuery = new StringBuffer("update " + reverseJoinTableConfig.getKeySpace() + "." +
 //                reverseJoinTableConfig.getName() + "set ");
@@ -603,7 +716,7 @@ public class ReverseJoinOperation extends GenericOperation {
     @Override
     public String toString() {
         return "ReverseJoinOperation{" +
-                ",\n inputViewTable=" + inputViewTable +
+                ",\n inputViewTable=" + inputViewTables +
                 ",\n operationViewTables=" + operationViewTables +
                 '}';
     }

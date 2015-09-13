@@ -111,7 +111,7 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess {
         String baseFromKeySpace = "";
         Statement stmt = CCJSqlParserUtil.parse(sqlString);
         PlainSelect plainSelect = null;
-
+        Expression whereExpression = null;
         WhereViewTable whereViewTable = null;
         ReverseJoinViewTable reverseJoinViewTable = null;
         InnerJoinViewTable innerJoinViewTable = null;
@@ -161,11 +161,11 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess {
                 logger.debug("### Computing the where clause ###");
                 String whereColName = "";
 
-                Expression expression = plainSelect.getWhere();
+                whereExpression = plainSelect.getWhere();
 
                 operationsInvolved.put("where", whereColName);
                 whereViewTable = new WhereViewTable();
-                whereViewTable.setWhereExpressions(expression);
+                whereViewTable.setWhereExpressions(whereExpression);
                 whereViewTable.setShouldBeMaterialized(getMapOperations().get("where"));
                 whereViewTable.setViewConfig(viewConfig);
                 List<Table> whereTablesCreated = whereViewTable.createTable();
@@ -176,7 +176,7 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess {
                     whereViewTable.createInMemory(whereTablesCreated);
                 }
                 WhereOperation whereOperation = WhereOperation.getInstance(null, whereTablesCreated);
-                whereOperation.setWhereExpression(expression);
+                whereOperation.setWhereExpression(whereExpression);
                 whereOperation.setViewConfig(viewConfig);
                 operationQueue.add(whereOperation);
                 logger.debug("### After adding where operation in operationQueue :: " + operationQueue);
@@ -200,7 +200,7 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess {
 
             if ( plainSelect.getJoins() != null ) {
                 /**
-                 * Note: Assuming only one join will be present
+                 * Note: Assuming only one join will be present and there is always a where associated with it.
                  **/
 
                 // Creating ReverseJoin View
@@ -223,6 +223,8 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess {
                 ReverseJoinOperation reverseJoinOperation = ReverseJoinOperation.getInstance(whereViewTable.getTables(),
                         reverseJoinTablesCreated);
                 reverseJoinOperation.setJoins(plainSelect.getJoins());
+                reverseJoinOperation.setViewConfig(viewConfig);
+                reverseJoinOperation.setWhereExpression(whereExpression);
                 operationQueue.add(reverseJoinOperation);
                 operationsInvolved.put("join", getJoinType(plainSelect.getJoins().get(0)));
 
@@ -381,7 +383,7 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess {
                         resultTableCreated);
             }
 
-            operationQueue.add(resultViewOperation);
+//            operationQueue.add(resultViewOperation);
         }
 
         logger.debug("### Operation Queue structure :: " + operationQueue);

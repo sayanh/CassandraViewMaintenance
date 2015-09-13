@@ -31,6 +31,40 @@ public class ResultViewTable implements ViewTable {
 
     private static final Logger logger = LoggerFactory.getLogger(ResultViewTable.class);
 
+
+    public Table getViewConfig() {
+        return viewConfig;
+    }
+
+    public void setViewConfig(Table viewConfig) {
+        this.viewConfig = viewConfig;
+    }
+
+    public PlainSelect getPlainSelect() {
+        return plainSelect;
+    }
+
+    public void setPlainSelect(PlainSelect plainSelect) {
+        this.plainSelect = plainSelect;
+    }
+
+    public List<Table> getTables() {
+        return tables;
+    }
+
+    private void setTables(List<Table> tables) {
+        this.tables = tables;
+    }
+
+    public String getBaseFromTableCompleteName() {
+        return baseFromTableCompleteName;
+    }
+
+    public void setBaseFromTableCompleteName(String baseFromTableCompleteName) {
+        this.baseFromTableCompleteName = baseFromTableCompleteName;
+    }
+
+
     @Override
     public List<Table> createTable() {
         logger.debug("###### Creating table for Final Result ######");
@@ -378,36 +412,5 @@ public class ResultViewTable implements ViewTable {
 
     }
 
-    public Table getViewConfig() {
-        return viewConfig;
-    }
-
-    public void setViewConfig(Table viewConfig) {
-        this.viewConfig = viewConfig;
-    }
-
-    public PlainSelect getPlainSelect() {
-        return plainSelect;
-    }
-
-    public void setPlainSelect(PlainSelect plainSelect) {
-        this.plainSelect = plainSelect;
-    }
-
-    public List<Table> getTables() {
-        return tables;
-    }
-
-    private void setTables(List<Table> tables) {
-        this.tables = tables;
-    }
-
-    public String getBaseFromTableCompleteName() {
-        return baseFromTableCompleteName;
-    }
-
-    public void setBaseFromTableCompleteName(String baseFromTableCompleteName) {
-        this.baseFromTableCompleteName = baseFromTableCompleteName;
-    }
 
 }

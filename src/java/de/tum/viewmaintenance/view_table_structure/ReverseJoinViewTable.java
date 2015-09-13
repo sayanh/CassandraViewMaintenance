@@ -130,7 +130,7 @@ public class ReverseJoinViewTable implements ViewTable {
                     continue;
                 } else if ( rightCol.getColumnName().equalsIgnoreCase(columnDefinitionEntry.getValue().name + "") ) {
                     if ( !isPrimaryColCreated ) {
-                        // Assumption for primary key only left column is considered.
+                        // Assumption: for primary key in join table only left column is considered.
                         column.setName(leftCol.getColumnName());
                         column.setIsPrimaryKey(true);
                         column.setDataType(ViewMaintenanceUtilities
@@ -143,28 +143,29 @@ public class ReverseJoinViewTable implements ViewTable {
                 }
 
                 // If a column with the same name appears in both the tables and is not a join key then
-                // the table name is added as a suffix to the name of the column
+                // the table name is added as a prefix to the name of the column
                 if ( ViewMaintenanceUtilities.checkPresenceOfColumnInDifferentTable(table.getKey(),
                         columnDefinitionEntry.getValue().name + "", baseTablesDefinitionsMap) ) {
-                    column.setName(columnDefinitionEntry.getValue().name + "" + "_" + table.getKey().split("\\.")[1]); // Key contains schema.table
+                    column.setName(table.getKey().split("\\.")[1] + "_" + columnDefinitionEntry.getValue().name); // Key contains schema.table
                 } else {
                     column.setName(columnDefinitionEntry.getValue().name.toString());
                 }
 
                 if ( columnDefinitionEntry.getValue().isPartitionKey() ) {
-                    column.setDataType(columnDefinitionEntry.getValue().type.toString());
+                    column.setDataType( "list<" + ViewMaintenanceUtilities.getCQL3DataTypeFromCassandraInternalDataType(
+                            columnDefinitionEntry.getValue().type.toString()) + ">");
 
                 } else {
                     if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(localPrimaryKeyType).
                             equalsIgnoreCase("Integer") ) {
                         column.setDataType("map <int," + ViewMaintenanceUtilities
                                 .getCQL3DataTypeFromCassandraInternalDataType(columnDefinitionEntry
-                                        .getValue().type + ">"));
+                                        .getValue().type + "") + ">");
                     } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(localPrimaryKeyType).
                             equalsIgnoreCase("String") ) {
                         column.setDataType("map <text, " + ViewMaintenanceUtilities
                                 .getCQL3DataTypeFromCassandraInternalDataType(columnDefinitionEntry
-                                        .getValue().type + ">"));
+                                        .getValue().type + "") + ">");
                     }
                 }
 
@@ -175,7 +176,7 @@ public class ReverseJoinViewTable implements ViewTable {
 
         newViewTable.setColumns(columnList);
 
-        logger.debug("***** Newly created table for reverse join :: " + newViewTable);
+        logger.debug("***** Newly created table for \"reverse join\" :: " + newViewTable);
         tablesCreated.add(newViewTable);
         tables = tablesCreated;
         return tables;

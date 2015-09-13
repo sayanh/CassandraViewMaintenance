@@ -32,7 +32,7 @@ public class ViewMaintenanceLogsReader extends Thread {
     private static final String LOG_FILE = "viewMaintenceCommitLogsv2.log";
     private static final String LOG_FILE_LOCATION = System.getProperty("cassandra.home") + "/logs/";
     private static final Logger logger = LoggerFactory.getLogger(ViewMaintenanceLogsReader.class);
-    private static final int SLEEP_INTERVAL = 1000;
+    private static final int SLEEP_INTERVAL = 10000;
 
 
     public ViewMaintenanceLogsReader() {
@@ -127,9 +127,13 @@ public class ViewMaintenanceLogsReader extends Thread {
                             }
                         }
                     }
+
+                    /**
+                     * Action section
+                     * Updating the delta view
+                     *
+                     * **/
                     if (lastOpertationIdProcessed < operation_id) {
-                        // Action section
-                        // Updating the delta view
 
                         DeltaViewTrigger deltaViewTrigger = new DeltaViewTrigger();
                         TriggerResponse deltaViewTriggerResponse = null;
@@ -160,29 +164,29 @@ public class ViewMaintenanceLogsReader extends Thread {
                         //TODO : Read from the configuration which base table should be used to fill the views
 
                         // Usecase: Reverse Join View: "schematest.salary" is the second table for join.
-                        if (tableName.contains("salary")) {
-                            for (int i = 0; i < viewsTables.size(); i++) {
-                                if (viewsTables.get(i).getName().equalsIgnoreCase("vt5")) {
-                                    request.setViewTable(viewsTables.get(i));
-                                    triggerProcess = new ReverseJoinViewTrigger();
-                                    // Updating the reverse join view
-                                    if ("insert".equalsIgnoreCase(type)) {
-                                        triggerResponse = triggerProcess.insertTrigger(request);
-//                                        } else if ("update".equalsIgnoreCase(type)) {
-//                                            triggerResponse = triggerProcess.updateTrigger(request);
-                                    } else if ("delete".equalsIgnoreCase(type)) {
-                                        request.setDeletedRowDeltaView(deltaViewTriggerResponse.getDeletedRowFromDeltaView());
-                                        triggerResponse = triggerProcess.deleteTrigger(request);
-                                    }
-                                }
-                            }
-                            if (triggerResponse.isSuccess()) {
-                                // If result is successful
-                                // Update the lastOperationProcessed variable
-                                updateStatusFile(operation_id + "");
-                            }
-                        }
-                        if (tableName.contains("emp")) {
+//                        if (tableName.contains("salary")) {
+//                            for (int i = 0; i < viewsTables.size(); i++) {
+//                                if (viewsTables.get(i).getName().equalsIgnoreCase("vt5")) {
+//                                    request.setViewTable(viewsTables.get(i));
+//                                    triggerProcess = new ReverseJoinViewTrigger();
+//                                    // Updating the reverse join view
+//                                    if ("insert".equalsIgnoreCase(type)) {
+//                                        triggerResponse = triggerProcess.insertTrigger(request);
+////                                        } else if ("update".equalsIgnoreCase(type)) {
+////                                            triggerResponse = triggerProcess.updateTrigger(request);
+//                                    } else if ("delete".equalsIgnoreCase(type)) {
+//                                        request.setDeletedRowDeltaView(deltaViewTriggerResponse.getDeletedRowFromDeltaView());
+//                                        triggerResponse = triggerProcess.deleteTrigger(request);
+//                                    }
+//                                }
+//                            }
+//                            if (triggerResponse.isSuccess()) {
+//                                // If result is successful
+//                                // Update the lastOperationProcessed variable
+//                                updateStatusFile(operation_id + "");
+//                            }
+//                        }
+                        if (tableName.contains("emp") || tableName.contains("salary")) {
                             for (int i = 0; i < viewsTables.size(); i++) {
 //                                logger.debug("### Checking ### viewtable name ### " + viewsTables.get(i).getName());
                                 if (viewsTables.get(i).getName().equalsIgnoreCase("vt1")) {
@@ -261,6 +265,8 @@ public class ViewMaintenanceLogsReader extends Thread {
                                         viewsTables.get(i).getName().equalsIgnoreCase("vt13") ||
                                         viewsTables.get(i).getName().equalsIgnoreCase("vt14") ||
                                         viewsTables.get(i).getName().equalsIgnoreCase("vt15")) {
+
+                                    logger.debug("### Checking ...View maintenance starts view name = {} ", viewsTables.get(i).getName());
                                     if (viewCache.containsKey(viewsTables.get(i).getName())) {
                                         triggerProcess = viewCache.get(viewsTables.get(i).getName());
                                     } else {
@@ -272,7 +278,7 @@ public class ViewMaintenanceLogsReader extends Thread {
                                     } else {
                                         deltaViewRow = deltaViewTriggerResponse.getDeltaViewUpdatedRow();
                                     }
-                                    if (viewsTables.get(i).getSqlString() != null || viewsTables.get(i).getSqlString().equalsIgnoreCase("")) {
+                                    if (viewsTables.get(i).getSqlString() != null || !viewsTables.get(i).getSqlString().equalsIgnoreCase("")) {
                                         request.setCurrentRecordInDeltaView(deltaViewRow);
                                         triggerResponse = ((SQLViewMaintenanceTrigger)triggerProcess)
                                                 .processSQLViewMaintenance(type, viewsTables.get(i), request);

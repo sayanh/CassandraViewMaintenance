@@ -328,6 +328,43 @@ public final class ViewMaintenanceUtilities {
     }
 
 
+
+    public static String checkForChangeInJoinKeyInDeltaView(List<String> joinKeyData, Row deltaTableRecord) {
+        logger.debug("#### Checking --- joinKeyData :: " + joinKeyData);
+        logger.debug("#### Checking --- deltaTableRecord :: " + deltaTableRecord);
+        String result = "";
+        if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(joinKeyData.get(1))
+                .equalsIgnoreCase("Integer") ) {
+            if ( deltaTableRecord.getInt(joinKeyData.get(0) + DeltaViewTrigger.CURRENT) ==
+                    deltaTableRecord.getInt(joinKeyData.get(0) + DeltaViewTrigger.LAST) ) {
+                result = "unchanged";
+            } else {
+                if ( deltaTableRecord.getInt(joinKeyData.get(0) + DeltaViewTrigger.LAST) == 0 ) {
+                    result = "new";
+                } else {
+                    result = "changed";
+                }
+            }
+        } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(joinKeyData.get(1))
+                .equalsIgnoreCase("String") ) {
+            if ( deltaTableRecord.getString(joinKeyData.get(0) + DeltaViewTrigger.CURRENT).equalsIgnoreCase(
+                    deltaTableRecord.getString(joinKeyData.get(0) + DeltaViewTrigger.LAST)) ) {
+                result = "unchanged";
+            } else {
+                if ( deltaTableRecord.getString(joinKeyData.get(0) + DeltaViewTrigger.LAST) == null
+                        || deltaTableRecord.getString(joinKeyData.get(0) + DeltaViewTrigger.LAST).isEmpty() ) {
+                    result = "new";
+                } else {
+                    result = "changed";
+                }
+            }
+        }
+
+        logger.debug("#### Result for checkForChangeInAggregationKey :: " + result);
+        return result;
+    }
+
+
     public static List<Expression> getParticularWhereExpressionBasedOnBaseTableOperation(String sqlString,
                                                                                          String baseTableName) {
         List<Expression> finalExpList = new ArrayList<>();
@@ -399,6 +436,7 @@ public final class ViewMaintenanceUtilities {
     public static boolean checkExpression(Expression expression, Map<String, List<String>> columnMap) {
 
         logger.debug("### Checking -- Inside checkExpression :: Column map : " + columnMap);
+        logger.debug("### Expression received :: " + expression);
         boolean result = false;
         Column column = null;
         String colName = "";
@@ -468,6 +506,81 @@ public final class ViewMaintenanceUtilities {
         }
         logger.debug("### Result for checkExpression() " + result);
         return result;
+    }
+
+
+    public static Column getColumnFromExpression(Expression expression, Map<String, List<String>> columnMap) {
+
+        logger.debug("### Checking -- Inside checkExpression :: Column map : " + columnMap);
+        boolean result = false;
+        Column column = null;
+        String colName = "";
+        String rightExpression = "";
+        if ( expression instanceof MinorThan ) {
+            column = ((Column) ((MinorThan) expression).getLeftExpression());
+//            tableName = column.getTable().getName();
+            colName = column.getColumnName();
+            List<String> userData = columnMap.get(colName);
+            rightExpression = ((MinorThan) expression).getRightExpression().toString();
+            if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
+                    .equalsIgnoreCase("Integer") ) {
+                if ( Integer.parseInt(userData.get(1)) < Integer.parseInt(rightExpression) ) {
+                    result = true;
+                }
+            } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
+                    .equalsIgnoreCase(("String")) ) {
+                //TODO: Need to implement
+            }
+        } else if ( expression instanceof MinorThanEquals ) {
+            column = ((Column) ((MinorThanEquals) expression).getLeftExpression());
+//            tableName = column.getTable().getName();
+            colName = column.getColumnName();
+            List<String> userData = columnMap.get(colName);
+            rightExpression = ((MinorThanEquals) expression).getRightExpression().toString();
+            if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
+                    .equalsIgnoreCase("Integer") ) {
+                if ( Integer.parseInt(userData.get(1)) <= Integer.parseInt(rightExpression) ) {
+                    result = true;
+                }
+            } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
+                    .equalsIgnoreCase(("String")) ) {
+                //TODO: Need to implement
+            }
+        } else if ( expression instanceof GreaterThan ) {
+            column = ((Column) ((GreaterThan) expression).getLeftExpression());
+//            tableName = column.getTable().getName();
+            colName = column.getColumnName();
+            List<String> userData = columnMap.get(colName);
+            logger.debug("### Checking -- colName :: " + colName);
+            rightExpression = ((GreaterThan) expression).getRightExpression().toString();
+            if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
+                    .equalsIgnoreCase("Integer") ) {
+                logger.debug("### Checking userdata.get(1)= {} and rightExpression = {} ", userData.get(1), rightExpression);
+                if ( Integer.parseInt(userData.get(1)) > Integer.parseInt(rightExpression) ) {
+                    result = true;
+                }
+            } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
+                    .equalsIgnoreCase(("String")) ) {
+                //TODO: Need to implement
+            }
+        } else if ( expression instanceof GreaterThanEquals ) {
+            column = ((Column) ((GreaterThanEquals) expression).getLeftExpression());
+//            tableName = column.getTable().getName();
+            colName = column.getColumnName();
+            List<String> userData = columnMap.get(colName);
+            rightExpression = ((GreaterThanEquals) expression).getRightExpression().toString();
+            if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
+                    .equalsIgnoreCase("Integer") ) {
+                if ( Integer.parseInt(userData.get(1)) >= Integer.parseInt(rightExpression) ) {
+                    result = true;
+                }
+            } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
+                    .equalsIgnoreCase(("String")) ) {
+                //TODO: Need to implement
+            }
+        }
+        logger.debug("### Result for checkExpression() " + result);
+        return column;
     }
 
 
@@ -569,7 +682,6 @@ public final class ViewMaintenanceUtilities {
 
     public static LinkedTreeMap createDataJsonForOldValue(LinkedTreeMap dataJsonMap, List<String> oldColData) {
         // Format: oldColData: ColName, Cass Type, Value
-        LinkedTreeMap finalDataJsonMap = null;
         Set keySet = dataJsonMap.keySet();
         Iterator dataIter = keySet.iterator();
         while ( dataIter.hasNext() ) {

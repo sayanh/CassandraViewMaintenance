@@ -6,10 +6,10 @@ package de.tum.viewmaintenance.view_table_structure;
 
 public class Column {
     private String name;
-    private String type;
+    private String type; // Contains CQL3 datatype: either from the view config or set explicitly through dataType
     private boolean isPrimaryKey = false;
     private String constraint;
-    private String dataType;
+    private String dataType; // Contains CQL3 datatype
     private String correspondingColumn;
     private Object value;
     private String javaDataType;
@@ -44,6 +44,9 @@ public class Column {
 
     public void setDataType(String dataType) {
         this.dataType = dataType;
+        if (type== null || type.isEmpty()) {
+            type = dataType;
+        }
     }
 
     public String getName() {

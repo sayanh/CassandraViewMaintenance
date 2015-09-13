@@ -85,7 +85,7 @@ public class WhereOperation extends GenericOperation {
         logger.debug("### Checking -- table description for baseTable:{} is \n {}", triggerRequest.getBaseTableKeySpace()
                 + "." + triggerRequest.getBaseTableName(), baseTableDesc);
 
-        boolean deciderForNewRow = false; // If true then the stream of information needs to be stored else deleted if already present
+//        boolean deciderForNewRow = false; // If true then the stream of information needs to be stored else deleted if already present
 
         Map<String, List<String>> columnMap = new HashMap<>();
         String viewTableName = TABLE_PREFIX + triggerRequest.getBaseTableName();
@@ -153,13 +153,13 @@ public class WhereOperation extends GenericOperation {
                         Column column = ViewMaintenanceUtilities.getColumnObject(expression);
                         logger.debug("### Evaluating expression :: " + expression.toString());
                         if ( column.getTable().getName().equalsIgnoreCase(targetTableDerivedFromOperationTable) ) {
-                            logger.debug("### Concerned expression :: " + expression.toString() + "for base table :: "
+                            logger.debug("### Concerned expression :: " + expression.toString() + " for base table :: "
                                     + targetTableDerivedFromOperationTable);
                             logger.debug("### Fetch Existing rows query ::" + fetchExistingRow);
                             // Fetching existing record from the view table if exists
                             List<Row> existingRecords = CassandraClientUtilities.commandExecution("localhost",
                                     fetchExistingRow);
-                            if ( existingRecords.size() < 0 ) {
+                            if ( existingRecords.size() > 0 ) {
                                 Row existingRecord = existingRecords.get(0);
                                 logger.debug("### Existing record ### " + existingRecord);
 
@@ -175,7 +175,7 @@ public class WhereOperation extends GenericOperation {
                             } else {
                                 // Insert - This is a new entry
                                 logger.debug("### New Entry for whereViewTable ###");
-                                if ( ViewMaintenanceUtilities.checkExpression(whereExpression, columnMap) ) {
+                                if ( ViewMaintenanceUtilities.checkExpression(expression, columnMap) ) {
 
                                     insertEligibleIndicator = true;
                                 } else {

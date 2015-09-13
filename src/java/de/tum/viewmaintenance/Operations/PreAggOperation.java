@@ -158,8 +158,7 @@ public class PreAggOperation extends GenericOperation {
                             logger.debug("#### Received concerned where table :: " + concernedWhereTable);
 
                             boolean didOldValueSatisfyWhereClause = ViewMaintenanceUtilities.didOldValueSatisfyWhereClause
-                                    (viewConfig, triggerRequest, userData,
-                                            deltaTableRecord, concernedWhereTable);
+                                    (viewConfig, triggerRequest, userData, deltaTableRecord, concernedWhereTable);
                             if ( didOldValueSatisfyWhereClause ) {
                                 logger.debug(" Old agg key satisfied the where clause hence it needs to be deleted");
                                 intelligentDeletionPreAggViewTable(userData, aggregationKeyData, baseTableInvolvedArr);
@@ -483,7 +482,7 @@ public class PreAggOperation extends GenericOperation {
         int newValue = 0;
 
         // Getting the status of the aggregate key change
-        List<String> aggregationKeyData = new ArrayList<>();
+        List<String> aggregationKeyData = new ArrayList<>(); // Column_name, CassandraInternalType
         aggregationKeyData.add(preAggTablePK.getColumnName().substring(preAggTablePK.getColumnName().indexOf("_") + 1));
         aggregationKeyData.add(preAggTablePK.getColumnInternalCassType());
 //        String statusEntryColAggKey = ViewMaintenanceUtilities.checkForChangeInAggregationKeyInDeltaView(

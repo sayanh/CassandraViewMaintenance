@@ -47,7 +47,7 @@
                 <dataType>int</dataType>
             </column>
             <column>
-                <name>salary</name>
+                <name>salaryval</name>
                 <dataType>int</dataType>
                 <primaryKey>false</primaryKey>
             </column>
