@@ -876,4 +876,20 @@ public final class ViewMaintenanceUtilities {
 
         }
     }
+
+
+    public static PrimaryKey createOldJoinKeyfromNewValue(PrimaryKey newPrimaryKey, Row deltaRow) {
+        PrimaryKey oldJoinKey = null;
+
+        if (newPrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer")) {
+            oldJoinKey = new PrimaryKey(newPrimaryKey.getColumnName(), newPrimaryKey.getColumnInternalCassType(),
+                    deltaRow.getInt(newPrimaryKey.getColumnName() + DeltaViewTrigger.LAST) + "");
+
+        } else if (newPrimaryKey.getColumnJavaType().equalsIgnoreCase("String")) {
+            oldJoinKey = new PrimaryKey(newPrimaryKey.getColumnName(), newPrimaryKey.getColumnInternalCassType(),
+                    deltaRow.getString(newPrimaryKey.getColumnName() + DeltaViewTrigger.LAST));
+        }
+
+        return oldJoinKey;
+    }
 }

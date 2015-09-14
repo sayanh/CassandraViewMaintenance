@@ -15,11 +15,43 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.management.Query;
 import java.util.*;
 
 /**
  * Created by shazra on 8/14/15.
  */
+
+class InnerJoinEligibilityCheck {
+    private List<String> columnNames;
+    private List<Object> objects;
+    boolean insertToInnerJoinEligible = true;
+
+    public List<String> getColumnNames() {
+        return columnNames;
+    }
+
+    public void setColumnNames(List<String> columnNames) {
+        this.columnNames = columnNames;
+    }
+
+    public List<Object> getObjects() {
+        return objects;
+    }
+
+    public void setObjects(List<Object> objects) {
+        this.objects = objects;
+    }
+
+    public boolean isInsertToInnerJoinEligible() {
+        return insertToInnerJoinEligible;
+    }
+
+    public void setInsertToInnerJoinEligible(boolean insertToInnerJoinEligible) {
+        this.insertToInnerJoinEligible = insertToInnerJoinEligible;
+    }
+}
+
 public class InnerJoinOperation extends GenericOperation {
     private static final Logger logger = LoggerFactory.getLogger(InnerJoinOperation.class);
     private Row deltaTableRecord;
@@ -136,19 +168,142 @@ public class InnerJoinOperation extends GenericOperation {
         List<Row> existingReverseJoinRecords = CassandraClientUtilities.commandExecution("localhost",
                 reverseJoinRecordFetchQuery);
         boolean insertToInnerJoinEligible = true;
-        List<String> columnNames = new ArrayList<>();
-        List<Object> objects = new ArrayList<>();
+        List<String> columnNamesCurrentJK = null;
+        List<Object> objectsCurrentJK = null;
         //TODO: Remove all the null checks and use is NUll
         //TODO: If a column is null then break else check for type and get the values which will be inserted to innerjoin view table
+
+        List<String> joinKeyData = new ArrayList<>();
+        joinKeyData.add(innerJoinViewPrimaryKey.getColumnName());
+        joinKeyData.add(innerJoinViewPrimaryKey.getColumnInternalCassType());
+
+
+        InnerJoinEligibilityCheck innerJoinEligibilityCheck = checkAndAssignObjectsInnerJoinQuery(existingReverseJoinRecords);
+        logger.debug("#### insertToInnerJoinEligible :: " + innerJoinEligibilityCheck.isInsertToInnerJoinEligible());
+
+
+        logger.debug("#### columnnames:: " + innerJoinEligibilityCheck.getColumnNames());
+        logger.debug("#### objects :: " + innerJoinEligibilityCheck.getObjects());
+
+        insertToInnerJoinEligible = innerJoinEligibilityCheck.isInsertToInnerJoinEligible();
+
+
+        String statusCurJoinKey = ViewMaintenanceUtilities.checkForChangeInJoinKeyInDeltaView(joinKeyData, deltaTableRecord);
+
+        if ( !statusCurJoinKey.equalsIgnoreCase("new") ) {
+            PrimaryKey oldInnerJoinPrimaryKey = ViewMaintenanceUtilities.createOldJoinKeyfromNewValue(innerJoinViewPrimaryKey,
+                    deltaTableRecord);
+
+            List<Row> oldReverseJoinRecords = getExistingRecordIfExistsInReverseJoinViewTable(oldInnerJoinPrimaryKey,
+                    reverseJoinTable);
+
+            logger.debug("#### Old reverse join records :: " + oldReverseJoinRecords);
+
+            InnerJoinEligibilityCheck innerJoinEligibilityCheckOldJoinKey = checkAndAssignObjectsInnerJoinQuery(oldReverseJoinRecords);
+
+            if ( innerJoinEligibilityCheckOldJoinKey.isInsertToInnerJoinEligible() ) {
+
+                logger.debug("#### Old join key satisfied inner join rules!!!");
+
+                List<String> columnNamesOldJoinKey = innerJoinEligibilityCheckOldJoinKey.getColumnNames();
+
+                List<Object> objectsOldJoinKey = innerJoinEligibilityCheckOldJoinKey.getObjects();
+
+                Statement insertIntoInnerJoinOldJoinKeyDataQuery = QueryBuilder.insertInto(operationViewTables.get(0).getKeySpace(),
+                        operationViewTables.get(0).getName()).values(columnNamesOldJoinKey.toArray(new String
+                        [columnNamesOldJoinKey.size()]), objectsOldJoinKey.toArray());
+
+                CassandraClientUtilities.commandExecution("localhost", insertIntoInnerJoinOldJoinKeyDataQuery);
+            } else {
+                logger.debug("### Old join key does not satisfy the inner join rules now!!!");
+
+                Row existingInnerJoinOldRecord = getExistingRecordFromInnerJoinTable(oldInnerJoinPrimaryKey);
+
+                if ( existingInnerJoinOldRecord != null ) {
+
+                    logger.debug("#### Old join key needs to be deleted as it no longer satisfies inner join rules");
+
+                    deleteInnerJoinTable(oldInnerJoinPrimaryKey);
+                }
+            }
+
+        }
+
+        logger.debug("#### case:: For the current entry to the base table!!");
+        if ( insertToInnerJoinEligible ) {
+            columnNamesCurrentJK = innerJoinEligibilityCheck.getColumnNames();
+            objectsCurrentJK = innerJoinEligibilityCheck.getObjects();
+            Statement insertQuery = QueryBuilder.insertInto(operationViewTables.get(0).getKeySpace(),
+                    operationViewTables.get(0).getName()).values(columnNamesCurrentJK
+                    .toArray(new String[columnNamesCurrentJK.size()]), objectsCurrentJK.toArray());
+
+            logger.debug("#### Insert query in innerjoin view table :: " + insertQuery);
+
+            CassandraClientUtilities.commandExecution("localhost", insertQuery);
+
+        } else {
+            Row existingRecordInnerJoinTable = getExistingRecordFromInnerJoinTable(innerJoinViewPrimaryKey);
+            logger.debug("#### existingRecordInnerJoinTable :: " + existingRecordInnerJoinTable);
+
+            if ( existingRecordInnerJoinTable != null ) {
+                logger.debug("#### deleting the existing row as it does not satisfy inner join rules");
+                deleteInnerJoinTable(innerJoinViewPrimaryKey);
+            }
+
+        }
+        return true;
+    }
+
+    /**
+     * Returns the row with existing record if there exists else returns null
+     **/
+    private List<Row> getExistingRecordIfExistsInReverseJoinViewTable(PrimaryKey reverseJoinViewTablePrimaryKey, Table
+            reverseJoinTableConfig) {
+        Statement existingRecordQuery = null;
+        // Checking if there is an already existing entry for the join key received
+        if ( reverseJoinViewTablePrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+
+            existingRecordQuery = QueryBuilder.select().all().from(reverseJoinTableConfig.getKeySpace(),
+                    reverseJoinTableConfig.getName()).where(QueryBuilder
+                    .eq(reverseJoinViewTablePrimaryKey.getColumnName(),
+                            Integer.parseInt(reverseJoinViewTablePrimaryKey.getColumnValueInString())));
+        } else if ( reverseJoinViewTablePrimaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
+            existingRecordQuery = QueryBuilder.select().all().from(reverseJoinTableConfig.getKeySpace(),
+                    reverseJoinTableConfig.getName()).where(QueryBuilder
+                    .eq(reverseJoinViewTablePrimaryKey.getColumnName(),
+                            reverseJoinViewTablePrimaryKey.getColumnValueInString()));
+        }
+
+        logger.debug("#### Existing Record Query :: " + existingRecordQuery);
+
+        List<Row> existingRows = CassandraClientUtilities.commandExecution("localhost", existingRecordQuery);
+
+
+        if ( existingRows.size() > 0 ) {
+            logger.debug("#### Existing record in reverse join view table :: " + existingRows.get(0));
+            return existingRows;
+        }
+
+        return null;
+    }
+
+
+    private InnerJoinEligibilityCheck checkAndAssignObjectsInnerJoinQuery(List<Row> existingReverseJoinRecords) {
+        InnerJoinEligibilityCheck innerJoinEligibilityCheck = null;
+
+
         if ( existingReverseJoinRecords != null && existingReverseJoinRecords.size() > 0 ) {
+            innerJoinEligibilityCheck = new InnerJoinEligibilityCheck();
+            List<String> columnNames = new ArrayList<>();
+            List<Object> objects = new ArrayList<>();
             Row existingReverseJoinRecord = existingReverseJoinRecords.get(0);
             for ( Column column : operationViewTables.get(0).getColumns() ) {
-                logger.debug("#### Checking | executing column :: " + column.getDataType());
+                logger.debug("#### Checking | executing column :: " + column);
                 if ( column.isPrimaryKey() ) {
                     String javaDataTypePK = ViewMaintenanceUtilities.getJavaDataTypeFromCQL3DataType(column.getDataType());
                     if ( javaDataTypePK.equalsIgnoreCase("Integer") ) {
                         if ( existingReverseJoinRecord.getInt(column.getName()) == 0 ) {
-                            insertToInnerJoinEligible = false;
+                            innerJoinEligibilityCheck.setInsertToInnerJoinEligible(false);
                             break;
                         } else {
                             columnNames.add(column.getName());
@@ -156,7 +311,7 @@ public class InnerJoinOperation extends GenericOperation {
                         }
                     } else if ( javaDataTypePK.equalsIgnoreCase("String") ) {
                         if ( existingReverseJoinRecord.isNull(column.getName()) ) {
-                            insertToInnerJoinEligible = false;
+                            innerJoinEligibilityCheck.setInsertToInnerJoinEligible(false);
                             break;
                         } else {
                             columnNames.add(column.getName());
@@ -170,7 +325,7 @@ public class InnerJoinOperation extends GenericOperation {
                     logger.debug("#### Checking : actualPrimaryKeyCol(list) in ReverseJoin Table : "
                             + actualPKListInReverseJoinView);
                     if ( actualPKListInReverseJoinView == null || actualPKListInReverseJoinView.isEmpty() ) {
-                        insertToInnerJoinEligible = false;
+                        innerJoinEligibilityCheck.setInsertToInnerJoinEligible(false);
                         break;
                     } else {
                         columnNames.add(column.getName());
@@ -182,29 +337,29 @@ public class InnerJoinOperation extends GenericOperation {
                     List<String> actualPKListInReverseJoinView = existingReverseJoinRecord.getList(column.getName(), String.class);
                     logger.debug("#### Checking : actualPrimaryKeyCol(list) in ReverseJoin Table : " + actualPKListInReverseJoinView);
                     if ( actualPKListInReverseJoinView == null || actualPKListInReverseJoinView.isEmpty() ) {
-                        insertToInnerJoinEligible = false;
+                        innerJoinEligibilityCheck.setInsertToInnerJoinEligible(false);
                         break;
                     } else {
                         columnNames.add(column.getName());
                         objects.add(existingReverseJoinRecord.getList(column.getName(), String.class));
                     }
                 } else {
-                    if ( column.getDataType().equalsIgnoreCase("map<int,text>") ) {
+                    if ( column.getDataType().equalsIgnoreCase("map <int,text>") ) {
                         Map<Integer, String> reverseJoinMap = existingReverseJoinRecord.getMap(column.getName(),
                                 Integer.class, String.class);
                         if ( reverseJoinMap == null || reverseJoinMap.isEmpty() ) {
-                            insertToInnerJoinEligible = false;
+                            innerJoinEligibilityCheck.setInsertToInnerJoinEligible(false);
                             break;
                         } else {
                             columnNames.add(column.getName());
                             objects.add(existingReverseJoinRecord.getMap(column.getName(), Integer.class, String.class));
                         }
-                    } else if ( column.getDataType().equalsIgnoreCase("map<int,int>") ) {
+                    } else if ( column.getDataType().equalsIgnoreCase("map <int,int>") ) {
                         Map<Integer, Integer> reverseJoinMap = existingReverseJoinRecord.getMap(column.getName(),
                                 Integer.class, Integer.class);
                         logger.debug("#### Checking : reverseJoinMap : " + reverseJoinMap);
                         if ( reverseJoinMap == null || reverseJoinMap.isEmpty() ) {
-                            insertToInnerJoinEligible = false;
+                            innerJoinEligibilityCheck.setInsertToInnerJoinEligible(false);
                             break;
                         } else {
                             columnNames.add(column.getName());
@@ -213,25 +368,58 @@ public class InnerJoinOperation extends GenericOperation {
                     }
                 }
             }
+
+            innerJoinEligibilityCheck.setColumnNames(columnNames);
+            innerJoinEligibilityCheck.setObjects(objects);
         }
 
-        logger.debug("#### insertToInnerJoinEligible :: " + insertToInnerJoinEligible);
+        return innerJoinEligibilityCheck;
+    }
 
-        if ( insertToInnerJoinEligible ) {
-            // Insert into the inner join view table
+    private void deleteInnerJoinTable(PrimaryKey innerJoinPrimaryKey) {
+        Statement deleteQuery = null;
 
-            Statement insertQuery = QueryBuilder.insertInto(operationViewTables.get(0).getKeySpace(),
-                    operationViewTables.get(0).getName()).values(columnNames.toArray(new String[columnNames.size()]),
-                    objects.toArray());
-
-            logger.debug("#### Insert query in innerjoin view table :: " + insertQuery);
-
-            CassandraClientUtilities.commandExecution("localhost", insertQuery);
-
-        } else {
-            logger.debug("#### View maintenance not required as the row does not qualify as inner join ");
+        if ( innerJoinPrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+            deleteQuery = QueryBuilder.delete().from(operationViewTables.get(0).getKeySpace(),
+                    operationViewTables.get(0).getName()).where(QueryBuilder.eq(innerJoinPrimaryKey.getColumnName(),
+                    Integer.parseInt(innerJoinPrimaryKey.getColumnValueInString())));
+        } else if ( innerJoinPrimaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
+            deleteQuery = QueryBuilder.delete().from(operationViewTables.get(0).getKeySpace(),
+                    operationViewTables.get(0).getName()).where(QueryBuilder.eq(innerJoinPrimaryKey.getColumnName(),
+                    innerJoinPrimaryKey.getColumnValueInString()));
         }
-        return true;
+
+
+        logger.debug("#### Delete query for inner join table :: " + deleteQuery);
+        CassandraClientUtilities.deleteCommandExecution("localhost", deleteQuery);
+    }
+
+
+    private Row getExistingRecordFromInnerJoinTable(PrimaryKey innerJoinPrimaryKey) {
+        Row existingRecordInnerJoinTable = null;
+
+        Statement existingInnerJoinRecordQuery = null;
+
+        if ( innerJoinPrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+
+            existingInnerJoinRecordQuery = QueryBuilder.select().from(operationViewTables.get(0).getKeySpace(),
+                    operationViewTables.get(0).getName()).where(QueryBuilder.eq(innerJoinPrimaryKey.getColumnName(),
+                    Integer.parseInt(innerJoinPrimaryKey.getColumnValueInString())));
+        } else if ( innerJoinPrimaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
+            existingInnerJoinRecordQuery = QueryBuilder.select().from(operationViewTables.get(0).getKeySpace(),
+                    operationViewTables.get(0).getName()).where(QueryBuilder.eq(innerJoinPrimaryKey.getColumnName(),
+                    innerJoinPrimaryKey.getColumnValueInString()));
+        }
+        List<Row> existingRecords = CassandraClientUtilities.commandExecution("localhost",
+                existingInnerJoinRecordQuery);
+        if ( existingRecords != null && existingRecords.size() > 0 ) {
+
+            existingRecordInnerJoinTable = existingRecords.get(0);
+        }
+
+        logger.debug("#### Existing record in inner join table:: " + existingRecordInnerJoinTable);
+
+        return existingRecordInnerJoinTable;
     }
 
     @Override

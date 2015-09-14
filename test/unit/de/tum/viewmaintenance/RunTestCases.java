@@ -47,12 +47,29 @@ public class RunTestCases {
                     CassandraClientUtilities.commandExecution("localhost", query);
                 }
 
-                logger.debug("#### View maintenance process is on!!!!");
+                logger.debug("#### View maintenance process is on...!!!!");
 
-                Thread.sleep(10000);
+                Thread.sleep(15000);
 
 
                 List<String> views = ViewMaintenanceUtilities.getAllViews();
+
+                for ( Table baseTable : load.getTables() ) {
+                    logger.info("Analysis| ##### Printing the contents of the base table {} ", baseTable.getName());
+                    Statement selectAllQuery = QueryBuilder.select().all().from(baseTable.getKeySpace(), baseTable.getName());
+                    List<Row> existingRecords = CassandraClientUtilities.commandExecution("localhost", selectAllQuery);
+                    logger.info("Analysis| Existing records for base table{} = {}",baseTable.getName() , existingRecords);
+
+                    logger.info("Analysis| ##### Printing the contents of the delta table {} ", baseTable.getName()
+                            + DeltaViewTrigger.DELTAVIEW_SUFFIX);
+                    Statement selectAllQueryDelta = QueryBuilder.select().all().from(baseTable.getKeySpace(),
+                            baseTable.getName() + DeltaViewTrigger.DELTAVIEW_SUFFIX);
+                    List<Row> existingRecordsDelta = CassandraClientUtilities.commandExecution("localhost",
+                            selectAllQueryDelta);
+                    logger.info("Analysis| Existing records for delta table{} = {}",baseTable.getName() ,
+                            existingRecordsDelta);
+
+                }
 
                 for ( String view : views ) {
                     logger.info("Analysis| ##### Printing the contents of the view {} ", view);
