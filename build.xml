@@ -1782,7 +1782,7 @@
   </target>
 
 <!-- Make sure that the instance of Cassandra is running-->
-    <target name="viewmaintenance-tests" depends="build-test" description="Tests viewmaintenance">
+    <target name="performance-tests" depends="build-test" description="Tests viewmaintenance">
         <path id="all-test-classes-path">
             <fileset dir="${test.unit.src}" excludes="**/pig/*.java" includes="**/${test.name}.java" />
         </path>

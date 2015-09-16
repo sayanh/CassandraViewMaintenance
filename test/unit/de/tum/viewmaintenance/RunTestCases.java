@@ -26,6 +26,8 @@ import java.util.Map;
  */
 public class RunTestCases {
     private static final Logger logger = LoggerFactory.getLogger(RunTestCases.class);
+    public static final String TEST_CASES_JSON_FILE = "testcases_joins.json";
+    private static final int VIEW_PROCESSING_INTERVAL = 20000;
 
     public static void main(String[] args) {
         RunTestCases runTestCases = new RunTestCases();
@@ -49,16 +51,16 @@ public class RunTestCases {
 
                 logger.debug("#### View maintenance process is on...!!!!");
 
-                Thread.sleep(15000);
+                Thread.sleep(VIEW_PROCESSING_INTERVAL);
 
 
                 List<String> views = ViewMaintenanceUtilities.getAllViews();
 
                 for ( Table baseTable : load.getTables() ) {
-                    logger.info("Analysis| ##### Printing the contents of the base table {} ", baseTable.getName());
+                    logger.info("Analysis| ##### Printing the contents of the base table:: {} ", baseTable.getName());
                     Statement selectAllQuery = QueryBuilder.select().all().from(baseTable.getKeySpace(), baseTable.getName());
                     List<Row> existingRecords = CassandraClientUtilities.commandExecution("localhost", selectAllQuery);
-                    logger.info("Analysis| Existing records for base table{} = {}",baseTable.getName() , existingRecords);
+                    logger.info("Analysis| Existing records for base table:: {} = {}",baseTable.getName() , existingRecords);
 
                     logger.info("Analysis| ##### Printing the contents of the delta table {} ", baseTable.getName()
                             + DeltaViewTrigger.DELTAVIEW_SUFFIX);
@@ -66,7 +68,7 @@ public class RunTestCases {
                             baseTable.getName() + DeltaViewTrigger.DELTAVIEW_SUFFIX);
                     List<Row> existingRecordsDelta = CassandraClientUtilities.commandExecution("localhost",
                             selectAllQueryDelta);
-                    logger.info("Analysis| Existing records for delta table{} = {}",baseTable.getName() ,
+                    logger.info("Analysis| Existing records for delta table:: {} = {}",baseTable.getName() ,
                             existingRecordsDelta);
 
                 }
@@ -93,6 +95,7 @@ public class RunTestCases {
             }
         } catch ( Exception e ) {
             e.printStackTrace();
+            logger.error(ViewMaintenanceUtilities.getStackTrace(e));
         }
         System.exit(0);
     }
@@ -120,7 +123,7 @@ public class RunTestCases {
         Map<String, List<String>> testCasesMap = new HashMap<>();
         try {
             String testCasesJson = new String(Files.readAllBytes(Paths.get(System.getProperty("cassandra.home")
-                    + "/testcases.json")));
+                    + "/" + TEST_CASES_JSON_FILE)));
             Map<String, Object> retMap = new Gson().fromJson(testCasesJson, new TypeToken<HashMap<String, Object>>() {
             }.getType());
 

@@ -67,22 +67,22 @@ public final class ViewMaintenanceUtilities {
             javaType = "String";
         } else if ( cassandraType.equalsIgnoreCase("org.apache.cassandra.db.marshal.Int32Type") ) {
             javaType = "Integer";
-        } else if (cassandraType.equalsIgnoreCase("org.apache.cassandra.db.ma" +
+        } else if ( cassandraType.equalsIgnoreCase("org.apache.cassandra.db.ma" +
                 "rshal.ListType(org.apache.cassandra.db.marshal.Int32Type)") ) {
             javaType = "list<Integer>";
-        } else if (cassandraType.equalsIgnoreCase("org.apache.cassandra.db.ma" +
+        } else if ( cassandraType.equalsIgnoreCase("org.apache.cassandra.db.ma" +
                 "rshal.ListType(org.apache.cassandra.db.marshal.UTF8Type)") ) {
             javaType = "list<String>";
-        } else if (cassandraType.equalsIgnoreCase("org.apache.cassandra.db.marshal.MapType(org.apache.cassandra.db.marshal.Int32Type,org.apache.cassandra.db.marshal.Int32Type)") ) {
+        } else if ( cassandraType.equalsIgnoreCase("org.apache.cassandra.db.marshal.MapType(org.apache.cassandra.db.marshal.Int32Type,org.apache.cassandra.db.marshal.Int32Type)") ) {
             javaType = "Map<Integer, Integer>";
-        } else if (cassandraType.equalsIgnoreCase("org.apache.cassandra.db.marshal.MapType(org.apache.cassandra.db.marshal.Int32Type,org.apache.cassandra.db.marshal.UTF8Type)") ) {
+        } else if ( cassandraType.equalsIgnoreCase("org.apache.cassandra.db.marshal.MapType(org.apache.cassandra.db.marshal.Int32Type,org.apache.cassandra.db.marshal.UTF8Type)") ) {
             javaType = "Map<Integer, String>";
-        } else if (cassandraType.equalsIgnoreCase("org.apache.cassandra.db.marshal.MapType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.Int32Type)") ) {
+        } else if ( cassandraType.equalsIgnoreCase("org.apache.cassandra.db.marshal.MapType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.Int32Type)") ) {
             javaType = "Map<String, Integer>";
-        } else if (cassandraType.equalsIgnoreCase("org.apache.cassandra.db.marshal.MapType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.UTF8Type)") ) {
+        } else if ( cassandraType.equalsIgnoreCase("org.apache.cassandra.db.marshal.MapType(org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.UTF8Type)") ) {
             javaType = "Map<String, String>";
         }
-            return javaType;
+        return javaType;
     }
 
     /**
@@ -296,7 +296,7 @@ public final class ViewMaintenanceUtilities {
         List<Row> existingRows = CassandraClientUtilities.commandExecution("localhost", existingRecordQuery);
 
 
-        if ( existingRows.size() > 0 ) {
+        if ( existingRows != null && existingRows.size() > 0 ) {
             logger.debug("#### Existing record in view table {} :: {}", table.getKeySpace() +
                     "." + table.getName(), existingRows.get(0));
             return existingRows.get(0);
@@ -342,6 +342,15 @@ public final class ViewMaintenanceUtilities {
     }
 
 
+    /**
+     * Returns String based on the Join Key in the delta view
+     * new : The data is a new entry with last value as null.
+     * changed : The join key has changed in the present operation.
+     * unchanged : The join key has not changed in the present operation and it is not a new join key.
+     * Hence current and last value in the delta table have the same value.
+     * <p/>
+     * Format:  joinKeyData: <joinkey_column_name> , <cassandra_internal_type_from_base_table>
+     **/
 
     public static String checkForChangeInJoinKeyInDeltaView(List<String> joinKeyData, Row deltaTableRecord) {
         logger.debug("#### Checking --- joinKeyData :: " + joinKeyData);
@@ -846,7 +855,7 @@ public final class ViewMaintenanceUtilities {
             String primaryKeyColName = "";
             String primaryKeyJavaType = "";
 
-            for ( Row row: columnDefs ) {
+            for ( Row row : columnDefs ) {
                 if ( row.getString("type").equalsIgnoreCase("partition_key") ) {
                     primaryKeyDataType = row.getString("validator");
                     primaryKeyColName = row.getString("column_name");
@@ -860,7 +869,7 @@ public final class ViewMaintenanceUtilities {
             Statement deleteQuery = null;
             for ( Row row : getExistingRows ) {
 
-                if (primaryKeyJavaType.equalsIgnoreCase("String") ) {
+                if ( primaryKeyJavaType.equalsIgnoreCase("String") ) {
                     deleteQuery = QueryBuilder.delete().from(viewKeyspaceName, viewTableName)
                             .where(QueryBuilder.eq(primaryKeyColName, row.getString(primaryKeyColName)));
                 } else if ( primaryKeyJavaType.equalsIgnoreCase("Integer") ) {
@@ -881,15 +890,46 @@ public final class ViewMaintenanceUtilities {
     public static PrimaryKey createOldJoinKeyfromNewValue(PrimaryKey newPrimaryKey, Row deltaRow) {
         PrimaryKey oldJoinKey = null;
 
-        if (newPrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer")) {
+        if ( newPrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
             oldJoinKey = new PrimaryKey(newPrimaryKey.getColumnName(), newPrimaryKey.getColumnInternalCassType(),
                     deltaRow.getInt(newPrimaryKey.getColumnName() + DeltaViewTrigger.LAST) + "");
 
-        } else if (newPrimaryKey.getColumnJavaType().equalsIgnoreCase("String")) {
+        } else if ( newPrimaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
             oldJoinKey = new PrimaryKey(newPrimaryKey.getColumnName(), newPrimaryKey.getColumnInternalCassType(),
                     deltaRow.getString(newPrimaryKey.getColumnName() + DeltaViewTrigger.LAST));
         }
 
         return oldJoinKey;
+    }
+
+
+    public static PrimaryKey getJoinTablePrimaryKey(Map<String, ColumnDefinition> joinViewDesc, LinkedTreeMap dataJson) {
+        Set keySet = dataJson.keySet();
+        Iterator dataIter = keySet.iterator();
+        PrimaryKey joinViewPrimaryKey = null;
+        for ( Map.Entry<String, ColumnDefinition> columnDefinitionEntry : joinViewDesc.entrySet() ) {
+            if ( columnDefinitionEntry.getValue().isPartitionKey() ) {
+                joinViewPrimaryKey = new PrimaryKey(columnDefinitionEntry.getKey(), columnDefinitionEntry.getValue()
+                        .type.toString(), "");
+
+                while ( dataIter.hasNext() ) {
+                    String tempDataKey = (String) dataIter.next();
+                    logger.debug("Key: " + tempDataKey);
+                    logger.debug("Value: " + dataJson.get(tempDataKey));
+
+                    if ( joinViewPrimaryKey.getColumnName().equalsIgnoreCase(tempDataKey) ) {
+                        if ( joinViewPrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+                            joinViewPrimaryKey.setColumnValueInString((String) dataJson.get(tempDataKey));
+                        } else if ( joinViewPrimaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
+                            joinViewPrimaryKey.setColumnValueInString(((String) dataJson.get(tempDataKey)).replaceAll("'", ""));
+                        }
+                        break;
+                    }
+                }
+            }
+
+        }
+        logger.debug("#### Primary key object created as::: " + joinViewPrimaryKey);
+        return joinViewPrimaryKey;
     }
 }

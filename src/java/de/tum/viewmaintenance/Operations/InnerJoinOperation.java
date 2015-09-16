@@ -125,6 +125,8 @@ public class InnerJoinOperation extends GenericOperation {
                     triggerRequest.getBaseTableName());
         }
 
+        // TODO:: Use the method ViewMaintenanceUtilities.getJoinTablePrimaryKey rather than writing again here
+
         Map<String, ColumnDefinition> reverseJoinTableDesc = ViewMaintenanceUtilities.getTableDefinitition(
                 reverseJoinTable.getKeySpace(), reverseJoinTable.getName());
         for ( Map.Entry<String, ColumnDefinition> columnDefinitionEntry : reverseJoinTableDesc.entrySet() ) {
@@ -149,6 +151,7 @@ public class InnerJoinOperation extends GenericOperation {
             }
 
         }
+
 
         logger.debug("### Inner join primary key = " + innerJoinViewPrimaryKey);
 
@@ -289,11 +292,10 @@ public class InnerJoinOperation extends GenericOperation {
 
 
     private InnerJoinEligibilityCheck checkAndAssignObjectsInnerJoinQuery(List<Row> existingReverseJoinRecords) {
-        InnerJoinEligibilityCheck innerJoinEligibilityCheck = null;
+        InnerJoinEligibilityCheck innerJoinEligibilityCheck = new InnerJoinEligibilityCheck();
 
 
         if ( existingReverseJoinRecords != null && existingReverseJoinRecords.size() > 0 ) {
-            innerJoinEligibilityCheck = new InnerJoinEligibilityCheck();
             List<String> columnNames = new ArrayList<>();
             List<Object> objects = new ArrayList<>();
             Row existingReverseJoinRecord = existingReverseJoinRecords.get(0);
@@ -357,7 +359,7 @@ public class InnerJoinOperation extends GenericOperation {
                     } else if ( column.getDataType().equalsIgnoreCase("map <int,int>") ) {
                         Map<Integer, Integer> reverseJoinMap = existingReverseJoinRecord.getMap(column.getName(),
                                 Integer.class, Integer.class);
-                        logger.debug("#### Checking : reverseJoinMap : " + reverseJoinMap);
+//                        logger.debug("#### Checking : reverseJoinMap : " + reverseJoinMap);
                         if ( reverseJoinMap == null || reverseJoinMap.isEmpty() ) {
                             innerJoinEligibilityCheck.setInsertToInnerJoinEligible(false);
                             break;
@@ -371,7 +373,10 @@ public class InnerJoinOperation extends GenericOperation {
 
             innerJoinEligibilityCheck.setColumnNames(columnNames);
             innerJoinEligibilityCheck.setObjects(objects);
+        } else {
+            innerJoinEligibilityCheck.setInsertToInnerJoinEligible(false);
         }
+
 
         return innerJoinEligibilityCheck;
     }

@@ -7,6 +7,7 @@ import com.google.gson.reflect.TypeToken;
 import de.tum.viewmaintenance.trigger.*;
 import de.tum.viewmaintenance.view_table_structure.Table;
 import de.tum.viewmaintenance.view_table_structure.Views;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,10 +15,7 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 
 /**
@@ -56,10 +54,10 @@ public class ViewMaintenanceLogsReader extends Thread {
         int lastOpertationIdProcessed;
         BufferedReader bufferedReader = null;
         Map<String, TriggerProcess> viewCache = new HashMap<>();
-        while (true) {
+        while ( true ) {
             try {
                 File statusFile = new File(System.getProperty("cassandra.home") + "/data/" + STATUS_FILE);
-                if (statusFile.exists()) {
+                if ( statusFile.exists() ) {
                     lastOpertationIdProcessed = Integer.parseInt(new String(Files.readAllBytes(Paths.get(System.getProperty("cassandra.home") + "/data/" + STATUS_FILE))));
                 } else {
                     lastOpertationIdProcessed = 0;
@@ -69,21 +67,21 @@ public class ViewMaintenanceLogsReader extends Thread {
                 bufferedReader = new BufferedReader(new FileReader(LOG_FILE_LOCATION + LOG_FILE));
                 String tempLine = "";
                 List<String> linesCommitLog = new ArrayList<>();
-                while ((tempLine = bufferedReader.readLine()) != null) {
+                while ( (tempLine = bufferedReader.readLine()) != null ) {
                     linesCommitLog.add(tempLine);
                 }
 
                 //TODO: use this List<String> stringList = Files.readAllLines(Paths.get(filePath), Charset.defaultCharset());
                 try {
-                    if (bufferedReader != null) {
+                    if ( bufferedReader != null ) {
                         bufferedReader.close();
                     }
-                } catch (IOException e) {
+                } catch ( IOException e ) {
                     logger.error("Error !! Stacktrace: \n " + ViewMaintenanceUtilities.getStackTrace(e));
                 }
 //                logger.debug("printing the list of tasks " + linesCommitLog);
 
-                for (String lineActivity : linesCommitLog) {
+                for ( String lineActivity : linesCommitLog ) {
                     JSONObject json;
                     Map<String, Object> retMap = new Gson().fromJson(lineActivity, new TypeToken<HashMap<String, Object>>() {
                     }.getType());
@@ -95,23 +93,23 @@ public class ViewMaintenanceLogsReader extends Thread {
                     TriggerRequest request = new TriggerRequest();
 
 
-                    for (Map.Entry<String, Object> entry : retMap.entrySet()) {
+                    for ( Map.Entry<String, Object> entry : retMap.entrySet() ) {
                         String key = entry.getKey();
                         String value = "";
 //                            logger.debug(key + "/" + entry.getValue());
-                        if (key.equalsIgnoreCase("type")) {
+                        if ( key.equalsIgnoreCase("type") ) {
                             type = (String) entry.getValue();
                             request.setType(type);
-                        } else if (key.equalsIgnoreCase("operation_id")) {
+                        } else if ( key.equalsIgnoreCase("operation_id") ) {
                             operation_id = ((Double) entry.getValue()).intValue();
-                        } else if (key.equalsIgnoreCase("data")) {
+                        } else if ( key.equalsIgnoreCase("data") ) {
                             dataJson = (LinkedTreeMap) entry.getValue();
                             request.setDataJson(dataJson);
-                        } else if (key.equalsIgnoreCase("table")) {
+                        } else if ( key.equalsIgnoreCase("table") ) {
                             tableName = (String) entry.getValue();
-                            if (tableName.contains(".")) {
+                            if ( tableName.contains(".") ) {
                                 String tableNameArr[] = tableName.split("\\.");
-                                if (tableNameArr.length == 2) {
+                                if ( tableNameArr.length == 2 ) {
                                     request.setBaseTableKeySpace(tableNameArr[0]);
                                     request.setBaseTableName(tableNameArr[1]);
                                 }
@@ -119,9 +117,9 @@ public class ViewMaintenanceLogsReader extends Thread {
                                 request.setBaseTableName(tableName);
                             }
 
-                        } else if (key.equalsIgnoreCase("where")) {
+                        } else if ( key.equalsIgnoreCase("where") ) {
 //                                logger.debug("************** getting class ***************" + entry.getValue().getClass());
-                            if (entry.getValue() instanceof String) {
+                            if ( entry.getValue() instanceof String ) {
                                 whereString = (String) entry.getValue();
                                 request.setWhereString(whereString);
                             }
@@ -133,19 +131,19 @@ public class ViewMaintenanceLogsReader extends Thread {
                      * Updating the delta view
                      *
                      * **/
-                    if (lastOpertationIdProcessed < operation_id) {
+                    if ( lastOpertationIdProcessed < operation_id ) {
 
                         DeltaViewTrigger deltaViewTrigger = new DeltaViewTrigger();
                         TriggerResponse deltaViewTriggerResponse = null;
-                        if (type.equalsIgnoreCase("insert")) {
+                        if ( type.equalsIgnoreCase("insert") ) {
                             deltaViewTriggerResponse = deltaViewTrigger.insertTrigger(request);
-                        } else if (type.equalsIgnoreCase("update")) {
+                        } else if ( type.equalsIgnoreCase("update") ) {
                             deltaViewTriggerResponse = deltaViewTrigger.updateTrigger(request);
-                        } else if (type.equalsIgnoreCase("delete")) {
+                        } else if ( type.equalsIgnoreCase("delete") ) {
                             deltaViewTriggerResponse = deltaViewTrigger.deleteTrigger(request);
                         }
 
-                        if (!deltaViewTriggerResponse.isSuccess()) {
+                        if ( !deltaViewTriggerResponse.isSuccess() ) {
                             break;
                         }
 
@@ -186,73 +184,73 @@ public class ViewMaintenanceLogsReader extends Thread {
 //                                updateStatusFile(operation_id + "");
 //                            }
 //                        }
-                        if (tableName.contains("emp") || tableName.contains("salary")) {
-                            for (int i = 0; i < viewsTables.size(); i++) {
+                        if ( tableName.contains("emp") || tableName.contains("salary") ) {
+                            for ( int i = 0; i < viewsTables.size(); i++ ) {
 //                                logger.debug("### Checking ### viewtable name ### " + viewsTables.get(i).getName());
-                                if (viewsTables.get(i).getName().equalsIgnoreCase("vt1")) {
+                                if ( viewsTables.get(i).getName().equalsIgnoreCase("vt1") ) {
                                     triggerProcess = new SelectTrigger();
                                     request.setViewTable(viewsTables.get(i));
-                                    if ("insert".equalsIgnoreCase(type)) {
+                                    if ( "insert".equalsIgnoreCase(type) ) {
                                         triggerResponse = triggerProcess.insertTrigger(request);
-                                    } else if ("update".equalsIgnoreCase(type)) {
+                                    } else if ( "update".equalsIgnoreCase(type) ) {
                                         triggerResponse = triggerProcess.updateTrigger(request);
-                                    } else if ("delete".equalsIgnoreCase(type)) {
+                                    } else if ( "delete".equalsIgnoreCase(type) ) {
                                         triggerResponse = triggerProcess.deleteTrigger(request);
                                     }
-                                } else if (viewsTables.get(i).getName().equalsIgnoreCase("vt2")) {
+                                } else if ( viewsTables.get(i).getName().equalsIgnoreCase("vt2") ) {
                                     request.setViewTable(viewsTables.get(i));
                                     triggerProcess = new CountTrigger();
-                                    if ("insert".equalsIgnoreCase(type)) {
+                                    if ( "insert".equalsIgnoreCase(type) ) {
                                         triggerResponse = triggerProcess.insertTrigger(request);
 //                                        } else if ("update".equalsIgnoreCase(type)) {
 //                                            triggerResponse = triggerProcess.updateTrigger(request);
-                                    } else if ("delete".equalsIgnoreCase(type)) {
+                                    } else if ( "delete".equalsIgnoreCase(type) ) {
                                         request.setDeletedRowDeltaView(deltaViewTriggerResponse.getDeletedRowFromDeltaView());
                                         triggerResponse = triggerProcess.deleteTrigger(request);
                                     }
-                                } else if (viewsTables.get(i).getName().equalsIgnoreCase("vt3")) {
+                                } else if ( viewsTables.get(i).getName().equalsIgnoreCase("vt3") ) {
                                     request.setViewTable(viewsTables.get(i));
                                     triggerProcess = new SumTrigger();
-                                    if ("insert".equalsIgnoreCase(type)) {
+                                    if ( "insert".equalsIgnoreCase(type) ) {
                                         triggerResponse = triggerProcess.insertTrigger(request);
 //                                        } else if ("update".equalsIgnoreCase(type)) {
 //                                            triggerResponse = triggerProcess.updateTrigger(request);
-                                    } else if ("delete".equalsIgnoreCase(type)) {
+                                    } else if ( "delete".equalsIgnoreCase(type) ) {
                                         triggerResponse = triggerProcess.deleteTrigger(request);
                                     }
 
-                                } else if (viewsTables.get(i).getName().equalsIgnoreCase("vt4")) {
+                                } else if ( viewsTables.get(i).getName().equalsIgnoreCase("vt4") ) {
                                     request.setViewTable(viewsTables.get(i));
                                     triggerProcess = new PreAggregationTrigger();
-                                    if ("insert".equalsIgnoreCase(type)) {
+                                    if ( "insert".equalsIgnoreCase(type) ) {
                                         triggerResponse = triggerProcess.insertTrigger(request);
-                                    } else if ("update".equalsIgnoreCase(type)) {
+                                    } else if ( "update".equalsIgnoreCase(type) ) {
                                         triggerResponse = triggerProcess.updateTrigger(request);
-                                    } else if ("delete".equalsIgnoreCase(type)) {
+                                    } else if ( "delete".equalsIgnoreCase(type) ) {
                                         triggerResponse = triggerProcess.deleteTrigger(request);
                                     }
 
-                                } else if (viewsTables.get(i).getName().equalsIgnoreCase("vt5")) {
+                                } else if ( viewsTables.get(i).getName().equalsIgnoreCase("vt5") ) {
                                     request.setViewTable(viewsTables.get(i));
                                     triggerProcess = new ReverseJoinViewTrigger();
                                     // Updating the reverse join view
-                                    if ("insert".equalsIgnoreCase(type)) {
+                                    if ( "insert".equalsIgnoreCase(type) ) {
                                         triggerResponse = triggerProcess.insertTrigger(request);
 //                                        } else if ("update".equalsIgnoreCase(type)) {
 //                                            triggerResponse = triggerProcess.updateTrigger(request);
-                                    } else if ("delete".equalsIgnoreCase(type)) {
+                                    } else if ( "delete".equalsIgnoreCase(type) ) {
                                         request.setDeletedRowDeltaView(deltaViewTriggerResponse.getDeletedRowFromDeltaView());
                                         triggerResponse = triggerProcess.deleteTrigger(request);
                                     }
-                                } else if (viewsTables.get(i).getName().equalsIgnoreCase("vt6")) {
+                                } else if ( viewsTables.get(i).getName().equalsIgnoreCase("vt6") ) {
                                     request.setViewTable(viewsTables.get(i));
                                     triggerProcess = new SumCountTrigger();
                                     // Updating the reverse join view
-                                    if ("insert".equalsIgnoreCase(type)) {
+                                    if ( "insert".equalsIgnoreCase(type) ) {
                                         triggerResponse = triggerProcess.insertTrigger(request);
 //                                        } else if ("update".equalsIgnoreCase(type)) {
 //                                            triggerResponse = triggerProcess.updateTrigger(request);
-                                    } else if ("delete".equalsIgnoreCase(type)) {
+                                    } else if ( "delete".equalsIgnoreCase(type) ) {
                                         request.setDeletedRowDeltaView(deltaViewTriggerResponse.getDeletedRowFromDeltaView());
                                         triggerResponse = triggerProcess.deleteTrigger(request);
                                     }
@@ -264,35 +262,37 @@ public class ViewMaintenanceLogsReader extends Thread {
                                         viewsTables.get(i).getName().equalsIgnoreCase("vt12") ||
                                         viewsTables.get(i).getName().equalsIgnoreCase("vt13") ||
                                         viewsTables.get(i).getName().equalsIgnoreCase("vt14") ||
-                                        viewsTables.get(i).getName().equalsIgnoreCase("vt15")) {
+                                        viewsTables.get(i).getName().equalsIgnoreCase("vt15") ||
+                                        viewsTables.get(i).getName().equalsIgnoreCase("vt16") ||
+                                        viewsTables.get(i).getName().equalsIgnoreCase("vt17") ) {
 
                                     logger.debug("### Checking ...View maintenance starts view name = {} ", viewsTables.get(i).getName());
-                                    if (viewCache.containsKey(viewsTables.get(i).getName())) {
+                                    if ( viewCache.containsKey(viewsTables.get(i).getName()) ) {
                                         triggerProcess = viewCache.get(viewsTables.get(i).getName());
                                     } else {
                                         triggerProcess = new SQLViewMaintenanceTrigger();
                                     }
                                     Row deltaViewRow = null;
-                                    if ("delete".equalsIgnoreCase(type)) {
+                                    if ( "delete".equalsIgnoreCase(type) ) {
                                         deltaViewRow = deltaViewTriggerResponse.getDeletedRowFromDeltaView();
                                     } else {
                                         deltaViewRow = deltaViewTriggerResponse.getDeltaViewUpdatedRow();
                                     }
-                                    if (viewsTables.get(i).getSqlString() != null || !viewsTables.get(i).getSqlString().equalsIgnoreCase("")) {
+                                    if ( viewsTables.get(i).getSqlString() != null || !viewsTables.get(i).getSqlString().equalsIgnoreCase("") ) {
                                         request.setCurrentRecordInDeltaView(deltaViewRow);
-                                        triggerResponse = ((SQLViewMaintenanceTrigger)triggerProcess)
+                                        triggerResponse = ((SQLViewMaintenanceTrigger) triggerProcess)
                                                 .processSQLViewMaintenance(type, viewsTables.get(i), request);
-                                        if (!viewCache.containsValue(viewsTables.get(i).getName())){
+                                        if ( !viewCache.containsValue(viewsTables.get(i).getName()) ) {
                                             viewCache.put(viewsTables.get(i).getName(), triggerProcess);
                                         }
                                     }
                                 }
-                                if (!triggerResponse.isSuccess()) {
+                                if ( !triggerResponse.isSuccess() ) {
                                     break;
                                 }
                             }
 
-                            if (triggerResponse.isSuccess()) {
+                            if ( triggerResponse.isSuccess() ) {
 //                                    // If result is successful update the lastOperationProcessed variable and the status file
                                 updateStatusFile(operation_id + "");
                             }
@@ -302,13 +302,13 @@ public class ViewMaintenanceLogsReader extends Thread {
                     }
 
                 }
-            } catch (Exception e) {
+            } catch ( Exception e ) {
                 logger.error("Error !! Stacktrace: \n " + ViewMaintenanceUtilities.getStackTrace(e));
             } finally {
                 try {
                     logger.debug("Going to sleep now");
                     this.sleep(SLEEP_INTERVAL);
-                } catch (InterruptedException e) {
+                } catch ( InterruptedException e ) {
                     logger.error("Error !! Stacktrace: \n " + ViewMaintenanceUtilities.getStackTrace(e));
                 }
             }
@@ -317,9 +317,9 @@ public class ViewMaintenanceLogsReader extends Thread {
     }
 
     public static ViewMaintenanceLogsReader getInstance() {
-        if (instance == null) {
+        if ( instance == null ) {
             synchronized (ViewMaintenanceLogsReader.class) {
-                if (instance == null) {
+                if ( instance == null ) {
                     instance = new ViewMaintenanceLogsReader();
                 }
             }

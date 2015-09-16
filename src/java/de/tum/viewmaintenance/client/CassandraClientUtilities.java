@@ -20,6 +20,7 @@ import java.util.List;
 
 public class CassandraClientUtilities {
     protected static final Logger logger = LoggerFactory.getLogger(CassandraClientUtilities.class);
+    private static Cluster clusterConn;
 
     /**
      * This method creates a keyspace if it is not present in a Cassandra instance
@@ -31,7 +32,7 @@ public class CassandraClientUtilities {
             String query = "CREATE SCHEMA IF NOT EXISTS " +
                     keyspace + " WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };";
             isSucc = CassandraClientUtilities.commandExecution(cluster, query);
-        } catch (Exception e) {
+        } catch ( Exception e ) {
             e.printStackTrace();
             logger.debug("Error !!!" + ViewMaintenanceUtilities.getStackTrace(e));
             return false;
@@ -48,23 +49,37 @@ public class CassandraClientUtilities {
         try {
             ResultSet results;
             Row rows;
-            cluster = Cluster.builder()
-                    .addContactPoint("localhost")
-                    .build();
-        } catch (Exception e) {
+
+//            cluster = Cluster.builder()
+//                    .addContactPoint("localhost")
+//                    .build();
+
+            cluster = getConnectionInstance();
+
+        } catch ( Exception e ) {
             logger.debug("Error !!!" + ViewMaintenanceUtilities.getStackTrace(e));
             e.printStackTrace();
         }
         return cluster;
     }
 
+    public static synchronized Cluster getConnectionInstance() {
+
+        if ( clusterConn == null ) {
+            return Cluster.builder()
+                    .addContactPoint("localhost")
+                    .build();
+        }
+        return clusterConn;
+    } 
+
     public static boolean closeConnection(Cluster cluster) {
         try {
-            if (cluster.isClosed()) {
+            if ( cluster.isClosed() ) {
                 cluster.close();
             }
             logger.info("Connection is successfully closed!!");
-        } catch (Exception e) {
+        } catch ( Exception e ) {
             e.printStackTrace();
             logger.debug("Error !!!" + ViewMaintenanceUtilities.getStackTrace(e));
             return false;
@@ -83,7 +98,7 @@ public class CassandraClientUtilities {
             StringBuffer query = new StringBuffer();
             query.append("create table if not exists " + table.getKeySpace() + "." + table.getName() + " (");
             List<Column> columns = table.getColumns();
-            for (Column col : columns) {
+            for ( Column col : columns ) {
                 String primaryKey = col.isPrimaryKey() ? " PRIMARY KEY" : "";
                 query.append(col.getName() + " " + col.getDataType() + primaryKey + ",");
             }
@@ -93,11 +108,11 @@ public class CassandraClientUtilities {
 
             logger.debug("Successfully created table {}.{}", table.getKeySpace(), table.getName());
 
-        } catch (Exception e) {
+        } catch ( Exception e ) {
             logger.debug("Error !!!" + ViewMaintenanceUtilities.getStackTrace(e));
             return false;
         } finally {
-            if (session.isClosed()) {
+            if ( session.isClosed() ) {
                 session.close();
             }
         }
@@ -107,10 +122,9 @@ public class CassandraClientUtilities {
 
     /**
      * Deletes a table when the inputs are the keyspace and table name
-     *
-     * **/
+     **/
 
-    public static boolean deleteTable(Cluster cluster, String keyspace, String tableName){
+    public static boolean deleteTable(Cluster cluster, String keyspace, String tableName) {
         Table tempTable = new Table();
         tempTable.setKeySpace(keyspace);
         tempTable.setName(tableName);
@@ -133,7 +147,7 @@ public class CassandraClientUtilities {
 
             logger.debug("Successfully delete table {}.{}", table.getKeySpace(), table.getName());
 
-        } catch (Exception e) {
+        } catch ( Exception e ) {
             logger.debug("Error !!!" + ViewMaintenanceUtilities.getStackTrace(e));
             return false;
         } finally {
@@ -159,15 +173,15 @@ public class CassandraClientUtilities {
             results = session.execute(query.toString());
             String resultString = results.all().toString();
             logger.debug("Resultset {}", resultString);
-            if (resultString.contains(table.getName())) {
+            if ( resultString.contains(table.getName()) ) {
                 return true;
             }
 
-        } catch (Exception e) {
+        } catch ( Exception e ) {
             logger.debug("Error !!!" + ViewMaintenanceUtilities.getStackTrace(e));
             return false;
         } finally {
-            if (session.isClosed()) {
+            if ( session.isClosed() ) {
                 session.close();
             }
         }
@@ -188,11 +202,11 @@ public class CassandraClientUtilities {
             results = session.execute(query);
             String resultString = results.all().toString();
 
-        } catch (Exception e) {
+        } catch ( Exception e ) {
             logger.debug("Error !!!" + ViewMaintenanceUtilities.getStackTrace(e));
             return false;
         } finally {
-            if (!session.isClosed()) {
+            if ( !session.isClosed() ) {
                 session.close();
             }
         }
@@ -206,11 +220,11 @@ public class CassandraClientUtilities {
         try {
             cluster = CassandraClientUtilities.getConnection(ip);
             isResultSuccessful = CassandraClientUtilities.commandExecution(cluster, query);
-        } catch (Exception e) {
+        } catch ( Exception e ) {
             logger.debug("Error !!!" + ViewMaintenanceUtilities.getStackTrace(e));
             return false;
         } finally {
-            if (!cluster.isClosed()) {
+            if ( !cluster.isClosed() ) {
                 CassandraClientUtilities.closeConnection(cluster);
             }
         }
@@ -226,15 +240,15 @@ public class CassandraClientUtilities {
             cluster = CassandraClientUtilities.getConnection(ip);
             session = cluster.connect();
             result = session.execute(query).all();
-        } catch (Exception e) {
+        } catch ( Exception e ) {
             e.printStackTrace();
             logger.debug("Error !!!" + e.getMessage());
             return null;
         } finally {
-            if (session!=null && !session.isClosed()) {
+            if ( session != null && !session.isClosed() ) {
                 session.close();
             }
-            if (cluster!=null && !cluster.isClosed()) {
+            if ( cluster != null && !cluster.isClosed() ) {
                 CassandraClientUtilities.closeConnection(cluster);
             }
         }
@@ -249,20 +263,20 @@ public class CassandraClientUtilities {
             cluster = CassandraClientUtilities.getConnection(ip);
             session = cluster.connect();
             session.execute(query);
-        } catch (Exception e) {
+        } catch ( Exception e ) {
             e.printStackTrace();
             logger.debug("Error !!!" + e.getMessage());
         } finally {
-            if (session!=null && !session.isClosed()) {
+            if ( session != null && !session.isClosed() ) {
                 session.close();
             }
-            if (cluster!=null && !cluster.isClosed()) {
+            if ( cluster != null && !cluster.isClosed() ) {
                 CassandraClientUtilities.closeConnection(cluster);
             }
         }
     }
 
-    public static List<Row> getAllRows(String keyspace, String table , Clause equal) {
+    public static List<Row> getAllRows(String keyspace, String table, Clause equal) {
         Cluster cluster = null;
         Session session = null;
         List<Row> result = null;
@@ -270,7 +284,7 @@ public class CassandraClientUtilities {
             cluster = CassandraClientUtilities.getConnection("localhost");
             session = cluster.connect();
             Statement statement = null;
-            if (equal == null) {
+            if ( equal == null ) {
                 statement = QueryBuilder
                         .select()
                         .all()
@@ -291,19 +305,19 @@ public class CassandraClientUtilities {
             cluster.close();
 
 
-        } catch (Exception e) {
+        } catch ( Exception e ) {
             e.printStackTrace();
             logger.debug("Error !!!" + ViewMaintenanceUtilities.getStackTrace(e));
         } finally {
-            if (session.isClosed()) {
+            if ( session.isClosed() ) {
                 session.close();
             }
 
-            if (cluster.isClosed()) {
+            if ( cluster.isClosed() ) {
                 cluster.close();
             }
         }
-        return  result;
+        return result;
     }
 
 
@@ -314,11 +328,11 @@ public class CassandraClientUtilities {
         List<Column> columns = baseTable.getColumns();
         List<Column> viewTableCols = new ArrayList<>();
         logger.debug("columns size = " + columns.size());
-        for (int i = 0; i < columns.size(); i++) {
+        for ( int i = 0; i < columns.size(); i++ ) {
             Column col = columns.get(i);
             logger.debug("working on col = " + col.getName());
             Column viewCol = new Column();
-            if (col.isPrimaryKey()) {
+            if ( col.isPrimaryKey() ) {
                 viewCol.setName(col.getName());
                 viewCol.setIsPrimaryKey(col.isPrimaryKey());
 
