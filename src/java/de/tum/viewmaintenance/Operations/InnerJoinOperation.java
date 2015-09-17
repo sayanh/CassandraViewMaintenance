@@ -224,6 +224,18 @@ public class InnerJoinOperation extends GenericOperation {
 
                 if ( existingInnerJoinOldRecord != null ) {
 
+                    // Store the row which is about to get deleted in the cache table
+
+                    Table cacheTable = new Table();
+
+                    cacheTable.setName(cacheTable.getName().replaceAll("inner", "innercache"));
+
+                    cacheTable.setColumns(operationViewTables.get(0).getColumns());
+
+                    logger.debug("#### Cache table config :: " + cacheTable);
+
+                    ViewMaintenanceUtilities.storeJoinRowInCache(existingInnerJoinOldRecord, cacheTable);
+
                     logger.debug("#### Old join key needs to be deleted as it no longer satisfies inner join rules");
 
                     deleteInnerJoinTable(oldInnerJoinPrimaryKey);
@@ -444,4 +456,5 @@ public class InnerJoinOperation extends GenericOperation {
                 ",\n operationViewTables=" + operationViewTables +
                 '}';
     }
+
 }

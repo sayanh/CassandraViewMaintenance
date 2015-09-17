@@ -230,6 +230,7 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess {
 
                 // Creating Required Join View
                 // Note: Only Inner Join works now
+                // Any special type of join needs a
 
                 List<Table> innerJoinTablesCreated = null;
                 for ( Join join : reverseJoinViewTable.getJoins() ) {
@@ -239,6 +240,9 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess {
                         innerJoinViewTable.setInputReverseJoinTableStruc(
                                 reverseJoinViewTable.getTables().get(0));
                         innerJoinViewTable.setViewConfig(viewConfig);
+                        if ( plainSelect.getGroupByColumnReferences() != null ) {
+                            innerJoinViewTable.setIsPreAggClausePresent(true);
+                        }
                         innerJoinTablesCreated = innerJoinViewTable.createTable();
                         logger.debug("### Checking - innerjoin shouldBeMaterialized() - " +
                                 getMapOperations().get("innerjoin"));

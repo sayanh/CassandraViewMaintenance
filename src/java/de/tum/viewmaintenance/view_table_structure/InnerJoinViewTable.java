@@ -24,6 +24,8 @@ public class InnerJoinViewTable implements ViewTable {
 
     private String TABLE_PREFIX;
 
+    private boolean isPreAggClausePresent = true;
+
     private static final Logger logger = LoggerFactory.getLogger(InnerJoinViewTable.class);
     /**
      * Naming convention for inner join view tables: <view_name>_innerjoin_<base_table_name1>_<base_table_name2>
@@ -38,7 +40,16 @@ public class InnerJoinViewTable implements ViewTable {
         newViewTable.setKeySpace(viewConfig.getKeySpace());
         newViewTable.setColumns(inputReverseJoinTableStruc.getColumns());
         tablesCreated.add(newViewTable);
-        logger.debug("***** Newly created table for reverse join :: " + newViewTable);
+        logger.debug("***** Newly created table for inner join :: " + newViewTable);
+
+        if (isPreAggClausePresent) {
+            // Creating a caching table for inner join view
+            Table cachingViewTable = new Table();
+            cachingViewTable.setName(inputReverseJoinTableStruc.getName().replaceAll("reverse", "innercache"));
+            cachingViewTable.setKeySpace(viewConfig.getKeySpace());
+            cachingViewTable.setColumns(inputReverseJoinTableStruc.getColumns());
+            tablesCreated.add(cachingViewTable);
+        }
         tables = tablesCreated;
         return tables;
     }
@@ -98,4 +109,11 @@ public class InnerJoinViewTable implements ViewTable {
         TABLE_PREFIX = viewConfig.getName() + "_innerjoin_";
     }
 
+    public boolean isPreAggClausePresent() {
+        return isPreAggClausePresent;
+    }
+
+    public void setIsPreAggClausePresent(boolean isPreAggClausePresent) {
+        this.isPreAggClausePresent = isPreAggClausePresent;
+    }
 }

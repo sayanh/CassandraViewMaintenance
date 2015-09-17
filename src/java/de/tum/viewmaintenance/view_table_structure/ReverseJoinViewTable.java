@@ -152,13 +152,13 @@ public class ReverseJoinViewTable implements ViewTable {
                 }
 
                 if ( columnDefinitionEntry.getValue().isPartitionKey() ) {
-                    column.setDataType( "list<" + ViewMaintenanceUtilities.getCQL3DataTypeFromCassandraInternalDataType(
+                    column.setDataType( "list <" + ViewMaintenanceUtilities.getCQL3DataTypeFromCassandraInternalDataType(
                             columnDefinitionEntry.getValue().type.toString()) + ">");
 
                 } else {
                     if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(localPrimaryKeyType).
                             equalsIgnoreCase("Integer") ) {
-                        column.setDataType("map <int," + ViewMaintenanceUtilities
+                        column.setDataType("map <int, " + ViewMaintenanceUtilities
                                 .getCQL3DataTypeFromCassandraInternalDataType(columnDefinitionEntry
                                         .getValue().type + "") + ">");
                     } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(localPrimaryKeyType).

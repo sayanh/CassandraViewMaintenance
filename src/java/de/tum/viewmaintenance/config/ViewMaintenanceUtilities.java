@@ -132,6 +132,12 @@ public final class ViewMaintenanceUtilities {
             javaDataType = "String";
         } else if ( cql3DataType.equalsIgnoreCase("int") ) {
             javaDataType = "Integer";
+        } else if ( cql3DataType.equalsIgnoreCase("list<text>") ) {
+            javaDataType = "list<String>";
+        } else if ( cql3DataType.equalsIgnoreCase("map <text, int>") ) {
+            javaDataType = "Map<String, Integer>";
+        } else if ( cql3DataType.equalsIgnoreCase("map <int, text>") ) {
+            javaDataType = "Map<Integer, String>";
         }
         return javaDataType;
     }
@@ -931,5 +937,39 @@ public final class ViewMaintenanceUtilities {
         }
         logger.debug("#### Primary key object created as::: " + joinViewPrimaryKey);
         return joinViewPrimaryKey;
+    }
+
+
+    public static void storeJoinRowInCache(Row existingRow, Table joinTableConfig) {
+
+        List<String> columnNames = new ArrayList<>();
+        List<Object> objects = new ArrayList<>();
+
+        for ( de.tum.viewmaintenance.view_table_structure.Column column : joinTableConfig.getColumns() ) {
+            columnNames.add(column.getName());
+            if (column.getDataType().equalsIgnoreCase("map <int, text>")) {
+                objects.add(existingRow.getMap(column.getName(), Integer.class, String.class));
+            } else if (column.getDataType().equalsIgnoreCase("map <text, int>")) {
+                objects.add(existingRow.getMap(column.getName(), String.class, Integer.class));
+            } else if (column.getDataType().equalsIgnoreCase("list <text>")) {
+                objects.add(existingRow.getList(column.getName(), String.class));
+            } else if (column.getDataType().equalsIgnoreCase("list <int>")) {
+                objects.add(existingRow.getList(column.getName(), Integer.class));
+            } else if (column.getDataType().equalsIgnoreCase("int")) {
+                objects.add(existingRow.getInt(column.getName()));
+            } else if (column.getDataType().equalsIgnoreCase("text")) {
+                objects.add(existingRow.getString(column.getName()));
+            }
+        }
+
+
+        Statement insertCacheQuery = QueryBuilder.insertInto(joinTableConfig.getKeySpace(),
+                joinTableConfig.getName()).values(columnNames.toArray(new String[columnNames.size()]),
+                objects.toArray());
+
+        logger.debug("##### InsertCacheQuery :: " + insertCacheQuery);
+
+        CassandraClientUtilities.commandExecution("localhost", insertCacheQuery);
+
     }
 }

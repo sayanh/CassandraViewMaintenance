@@ -1,5 +1,7 @@
 package de.tum.viewmaintenance.view_table_structure;
 
+import de.tum.viewmaintenance.config.ViewMaintenanceUtilities;
+
 /**
  * Created by shazra on 6/21/15.
  */
@@ -46,6 +48,10 @@ public class Column {
         this.dataType = dataType;
         if (type== null || type.isEmpty()) {
             type = dataType;
+        }
+
+        if (javaDataType==null || javaDataType.isEmpty()) {
+            javaDataType = ViewMaintenanceUtilities.getJavaDataTypeFromCQL3DataType(type);
         }
     }
 
