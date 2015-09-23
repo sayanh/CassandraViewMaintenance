@@ -228,7 +228,9 @@ public class InnerJoinOperation extends GenericOperation {
 
                     Table cacheTable = new Table();
 
-                    cacheTable.setName(cacheTable.getName().replaceAll("inner", "innercache"));
+                    cacheTable.setName(operationViewTables.get(0).getName().replaceAll("inner", "innercache"));
+
+                    cacheTable.setKeySpace(operationViewTables.get(0).getKeySpace());
 
                     cacheTable.setColumns(operationViewTables.get(0).getColumns());
 
@@ -306,7 +308,6 @@ public class InnerJoinOperation extends GenericOperation {
     private InnerJoinEligibilityCheck checkAndAssignObjectsInnerJoinQuery(List<Row> existingReverseJoinRecords) {
         InnerJoinEligibilityCheck innerJoinEligibilityCheck = new InnerJoinEligibilityCheck();
 
-
         if ( existingReverseJoinRecords != null && existingReverseJoinRecords.size() > 0 ) {
             List<String> columnNames = new ArrayList<>();
             List<Object> objects = new ArrayList<>();
@@ -332,7 +333,8 @@ public class InnerJoinOperation extends GenericOperation {
                             objects.add(existingReverseJoinRecord.getString(column.getName()));
                         }
                     }
-                } else if ( column.getDataType().equalsIgnoreCase("list<int>") ) {
+                } else if ( column.getDataType().equalsIgnoreCase("list<int>") ||
+                        column.getDataType().equalsIgnoreCase("list <int>") ) {
                     // For the actual primary key of datatype int
                     List<Integer> actualPKListInReverseJoinView = existingReverseJoinRecord.getList(column.getName(),
                             Integer.class);
@@ -346,7 +348,8 @@ public class InnerJoinOperation extends GenericOperation {
                         objects.add(existingReverseJoinRecord.getList(column.getName(), Integer.class));
                     }
 
-                } else if ( column.getDataType().equalsIgnoreCase("list<text>") ) {
+                } else if ( column.getDataType().equalsIgnoreCase("list<text>") ||
+                        column.getDataType().equalsIgnoreCase("list <text>")) {
                     // For the actual primary key of datatype String
                     List<String> actualPKListInReverseJoinView = existingReverseJoinRecord.getList(column.getName(), String.class);
                     logger.debug("#### Checking : actualPrimaryKeyCol(list) in ReverseJoin Table : " + actualPKListInReverseJoinView);
@@ -358,7 +361,8 @@ public class InnerJoinOperation extends GenericOperation {
                         objects.add(existingReverseJoinRecord.getList(column.getName(), String.class));
                     }
                 } else {
-                    if ( column.getDataType().equalsIgnoreCase("map <int,text>") ) {
+                    if ( column.getDataType().equalsIgnoreCase("map <int,text>") ||
+                            column.getDataType().equalsIgnoreCase("map <int, text>")) {
                         Map<Integer, String> reverseJoinMap = existingReverseJoinRecord.getMap(column.getName(),
                                 Integer.class, String.class);
                         if ( reverseJoinMap == null || reverseJoinMap.isEmpty() ) {
@@ -368,7 +372,8 @@ public class InnerJoinOperation extends GenericOperation {
                             columnNames.add(column.getName());
                             objects.add(existingReverseJoinRecord.getMap(column.getName(), Integer.class, String.class));
                         }
-                    } else if ( column.getDataType().equalsIgnoreCase("map <int,int>") ) {
+                    } else if ( column.getDataType().equalsIgnoreCase("map <int,int>") ||
+                            column.getDataType().equalsIgnoreCase("map <int, int>")) {
                         Map<Integer, Integer> reverseJoinMap = existingReverseJoinRecord.getMap(column.getName(),
                                 Integer.class, Integer.class);
 //                        logger.debug("#### Checking : reverseJoinMap : " + reverseJoinMap);

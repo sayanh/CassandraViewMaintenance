@@ -46,11 +46,11 @@ public class Column {
 
     public void setDataType(String dataType) {
         this.dataType = dataType;
-        if (type== null || type.isEmpty()) {
+        if ( type == null || type.isEmpty() ) {
             type = dataType;
         }
 
-        if (javaDataType==null || javaDataType.isEmpty()) {
+        if ( (javaDataType == null || javaDataType.isEmpty()) && (type != null && !type.isEmpty()) ) {
             javaDataType = ViewMaintenanceUtilities.getJavaDataTypeFromCQL3DataType(type);
         }
     }

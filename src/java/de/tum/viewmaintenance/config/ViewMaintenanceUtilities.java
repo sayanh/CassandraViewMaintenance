@@ -96,8 +96,12 @@ public final class ViewMaintenanceUtilities {
             cql3Type = "text";
         } else if ( internalDataType.equalsIgnoreCase("org.apache.cassandra.db.marshal.Int32Type") ) {
             cql3Type = "int";
-        } else if ( internalDataType.equalsIgnoreCase("org.apache.cassandra.db.marshal.MapType(org.apache.cassandra.db.marshal.Int32Type,org.apache.cassandra.db.marshal.UTF8Type)") ) {
+        } else if ( internalDataType.equalsIgnoreCase("org.apache.cassandra.db.marshal.MapType(" +
+                "org.apache.cassandra.db.marshal.Int32Type,org.apache.cassandra.db.marshal.UTF8Type)") ) {
             cql3Type = "map <int, text>";
+        } else if ( internalDataType.equalsIgnoreCase("org.apache.cassandra.db.marshal.MapType(" +
+                "org.apache.cassandra.db.marshal.UTF8Type,org.apache.cassandra.db.marshal.Int32Type)") ) {
+            cql3Type = "map <text, int>";
         }
         return cql3Type;
     }
@@ -389,7 +393,7 @@ public final class ViewMaintenanceUtilities {
             }
         }
 
-        logger.debug("#### Result for chnage in joinKey :: " + result);
+        logger.debug("#### Result for change in joinKey :: " + result);
         return result;
     }
 
@@ -951,6 +955,10 @@ public final class ViewMaintenanceUtilities {
                 objects.add(existingRow.getMap(column.getName(), Integer.class, String.class));
             } else if (column.getDataType().equalsIgnoreCase("map <text, int>")) {
                 objects.add(existingRow.getMap(column.getName(), String.class, Integer.class));
+            } else if (column.getDataType().equalsIgnoreCase("map <int, int>")) {
+                objects.add(existingRow.getMap(column.getName(), Integer.class, Integer.class));
+            } else if (column.getDataType().equalsIgnoreCase("map <text, text>")) {
+                objects.add(existingRow.getMap(column.getName(), String.class, String.class));
             } else if (column.getDataType().equalsIgnoreCase("list <text>")) {
                 objects.add(existingRow.getList(column.getName(), String.class));
             } else if (column.getDataType().equalsIgnoreCase("list <int>")) {
@@ -971,5 +979,20 @@ public final class ViewMaintenanceUtilities {
 
         CassandraClientUtilities.commandExecution("localhost", insertCacheQuery);
 
+        logger.debug("#### Checking old inner join row is cached!!! ");
+
+    }
+
+
+    public static PrimaryKey getPrimaryKeyFromTableDescWithoutValue(Map<String, ColumnDefinition> tableDesc) {
+        PrimaryKey finalPrimaryKey = null;
+        for ( Map.Entry<String, ColumnDefinition> tableDescEntry: tableDesc.entrySet() ) {
+            if (tableDescEntry.getValue().isPartitionKey()) {
+                finalPrimaryKey = new PrimaryKey(tableDescEntry.getValue().name.toString(),
+                        tableDescEntry.getValue().type.toString(), "");
+            }
+        }
+
+        return finalPrimaryKey;
     }
 }
