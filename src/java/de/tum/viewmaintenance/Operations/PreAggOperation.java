@@ -12,9 +12,7 @@ import de.tum.viewmaintenance.trigger.DeltaViewTrigger;
 import de.tum.viewmaintenance.trigger.TriggerRequest;
 import de.tum.viewmaintenance.view_table_structure.Column;
 import de.tum.viewmaintenance.view_table_structure.Table;
-import net.sf.jsqlparser.expression.Expression;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.codehaus.jackson.map.util.PrimitiveArrayBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -921,7 +919,70 @@ public class PreAggOperation extends GenericOperation {
 
     @Override
     public boolean deleteTrigger(TriggerRequest triggerRequest) {
-        return false;
+        logger.debug("##### Entering delete trigger for PreAggregate Operations!!! ");
+        logger.debug("##### Received elements #####");
+        logger.debug("##### Table structure involved :: {}", this.operationViewTables);
+        this.deltaTableRecord = triggerRequest.getCurrentRecordInDeltaView();
+        logger.debug("##### Delta table record ::  {}", this.deltaTableRecord);
+        logger.debug("##### Input tables structure :: {}", this.inputViewTables);
+        logger.debug("##### Trigger request :: " + triggerRequest);
+
+        Table preAggTableConfig = operationViewTables.get(0);
+        Map<String, ColumnDefinition> preAggTableDesc = ViewMaintenanceUtilities.getTableDefinitition(preAggTableConfig.getKeySpace(),
+                preAggTableConfig.getName());
+
+        if ( inputViewTables != null && inputViewTables.get(0).getName().contains(WHERE_TABLE_INDENTIFIER) ) {
+
+        } else if ( inputViewTables != null && inputViewTables.get(0).getName().contains(INNER_JOIN_TABLE_INDENTIFIER) ) {
+
+        } else {
+            logger.debug("#### deleteTrigger :: only agg case");
+            PrimaryKey deltaTablePrimaryKey = ViewMaintenanceUtilities.getPrimaryKeyFromTableConfigWithoutValue(
+                    triggerRequest.getBaseTableKeySpace(), triggerRequest.getBaseTableName() + DeltaViewTrigger.DELTAVIEW_SUFFIX);
+
+            logger.debug("#### deltaTablePrimaryKey ::: " + deltaTablePrimaryKey);
+
+            PrimaryKey preAggPrimaryKey = null;
+
+            String functionName = "";
+
+            if (deltaTablePrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer")) {
+                deltaTablePrimaryKey.setColumnValueInString(deltaTableRecord.getInt(deltaTablePrimaryKey.getColumnName()) + "");
+            } else if (deltaTablePrimaryKey.getColumnJavaType().equalsIgnoreCase("String")) {
+                deltaTablePrimaryKey.setColumnValueInString(deltaTableRecord.getString(deltaTablePrimaryKey.getColumnName()));
+            }
+            String targetColName = "";
+            for ( Map.Entry<String, ColumnDefinition> preAggColEntry: preAggTableDesc.entrySet()) {
+                if (preAggColEntry.getValue().isPartitionKey()) {
+                    String derivedColumnName = preAggColEntry.getKey().substring(preAggColEntry.getKey().indexOf("_") + 1);
+                    String cql3Type = ViewMaintenanceUtilities.getCQL3DataTypeFromCassandraInternalDataType(preAggColEntry
+                            .getValue().type.toString());
+                    if (cql3Type.equalsIgnoreCase("text")) {
+                        preAggPrimaryKey = new PrimaryKey(preAggColEntry.getKey(), preAggColEntry.getValue().type.toString(),
+                                deltaTableRecord.getString(derivedColumnName + DeltaViewTrigger.CURRENT));
+
+                        logger.debug("#### Pre agg primary key :: " + preAggPrimaryKey);
+                    } else if (cql3Type.equalsIgnoreCase("int")) {
+                        preAggPrimaryKey = new PrimaryKey(preAggColEntry.getKey(), preAggColEntry.getValue().type.toString(),
+                                deltaTableRecord.getInt(derivedColumnName + DeltaViewTrigger.CURRENT) + "");
+                        logger.debug("#### Pre agg primary key :: " + preAggPrimaryKey);
+                    }
+
+                } else {
+                    targetColName = preAggColEntry.getKey().substring(preAggColEntry.getKey().indexOf("_") + 1);
+                    functionName = preAggColEntry.getKey().substring(0, preAggColEntry.getKey().indexOf("_"));
+                }
+            }
+
+            int subtractionAmount = deltaTableRecord.getInt(targetColName + DeltaViewTrigger.CURRENT);
+            if (functionName.equalsIgnoreCase("sum")) {
+                deleteFromSumPreAggView(preAggPrimaryKey, functionName + "_" + targetColName, subtractionAmount);
+            } else if (functionName.equalsIgnoreCase("count")) {
+                deleteFromCountPreAggView(preAggPrimaryKey, functionName + "_" + targetColName);
+            }
+
+        }
+        return true;
     }
 
     private void updateSumPreAggView(PrimaryKey preAggTablePK, Row existingRecordPreAggTable, List<String> userData) {
