@@ -636,7 +636,71 @@ public class ResultViewOperation extends GenericOperation {
 
     @Override
     public boolean deleteTrigger(TriggerRequest triggerRequest) {
-        return false;
+        logger.debug("##### Entering delete trigger for Final Result Operations!!! ");
+        logger.debug("##### Received elements #####");
+        logger.debug("##### Table structure involved: {}", this.operationViewTables);
+        this.deltaTableRecord = triggerRequest.getCurrentRecordInDeltaView();
+        logger.debug("##### Delta table record {}", this.deltaTableRecord);
+        logger.debug("##### Input tables structure {}", this.inputViewTables);
+        logger.debug("##### Trigger request :: " + triggerRequest);
+
+        try {
+            if ( inputViewTables.size() >= 1 && inputViewTables.get(0).getName().contains(WHERE_TABLE_INDENTIFIER) ) {
+                logger.debug("#### Where insert trigger for result view maintenance!!");
+                whereDeleteTrigger(triggerRequest);
+            } else if ( inputViewTables.size() == 1 && inputViewTables.get(0).getName().contains(JOIN_TABLE_INDENTIFIER) ) {
+                logger.debug("#### Join insert trigger for result view maintenance!!");
+            } else if ( inputViewTables.size() == 1 && inputViewTables.get(0).getName().contains(AGG_TABLE_INDENTIFIER) ) {
+                logger.debug("#### Agg insert trigger for result view maintenance!!");
+                aggDeleteTrigger(triggerRequest);
+            } else if ( inputViewTables.size() == 1 && inputViewTables.get(0).getName().contains(PREAGG_TABLE_INDENTIFIER) ) {
+                logger.debug("#### Preagg insert trigger for result view maintenance!!");
+                preaggDeleteTrigger(triggerRequest);
+            }
+        } catch ( Exception e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+            throw e;
+        }
+
+        return true;
+    }
+
+
+    public void whereDeleteTrigger(TriggerRequest triggerRequest) {
+        Table whereTableConfig = ViewMaintenanceUtilities.getConcernedWhereTableFromWhereTablesList(triggerRequest, inputViewTables);
+
+
+        PrimaryKey whereTablePrimaryKey = ViewMaintenanceUtilities.getPrimaryKeyFromTableConfigWithoutValue(
+                whereTableConfig.getKeySpace(), whereTableConfig.getName());
+
+        PrimaryKey resultTablePrimaryKey = ViewMaintenanceUtilities.getPrimaryKeyFromTableConfigWithoutValue(
+                operationViewTables.get(0).getKeySpace(), operationViewTables.get(0).getName());
+
+        String[] whereStringArr = triggerRequest.getWhereString().split("=");
+        if ( whereTablePrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+            whereTablePrimaryKey.setColumnValueInString(whereStringArr[1].trim());
+            resultTablePrimaryKey.setColumnValueInString(whereStringArr[1].trim());
+        } else if ( whereTablePrimaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
+            whereTablePrimaryKey.setColumnValueInString(whereStringArr[1].trim().replace("'", ""));
+            resultTablePrimaryKey.setColumnValueInString(whereStringArr[1].trim().replace("'", ""));
+        }
+
+        Row recordTobeDeleted = ViewMaintenanceUtilities.getExistingRecordIfExists(whereTablePrimaryKey, whereTableConfig);
+
+        logger.debug("### Delete from result view for primary key :: " + resultTablePrimaryKey);
+        if (recordTobeDeleted == null) {
+            deleteFromResultView(resultTablePrimaryKey);
+        }
+
+    }
+
+
+    public void aggDeleteTrigger(TriggerRequest triggerRequest) {
+
+    }
+
+    public void preaggDeleteTrigger(TriggerRequest triggerRequest) {
+
     }
 
     public static ResultViewOperation getInstance(List<Table> inputViewTables,

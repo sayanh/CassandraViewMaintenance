@@ -7,6 +7,7 @@ import com.google.gson.internal.LinkedTreeMap;
 import de.tum.viewmaintenance.client.CassandraClientUtilities;
 import de.tum.viewmaintenance.config.PrimaryKey;
 import de.tum.viewmaintenance.config.ViewMaintenanceUtilities;
+import de.tum.viewmaintenance.config.WhereUtilityProcessor;
 import de.tum.viewmaintenance.trigger.TriggerRequest;
 import de.tum.viewmaintenance.view_table_structure.Table;
 import net.sf.jsqlparser.expression.Expression;
@@ -72,7 +73,7 @@ public class WhereOperation extends GenericOperation {
         logger.debug("##### Delta table record {}", this.deltaTableRecord);
         logger.debug("##### Trigger request :: " + triggerRequest);
         Statement fetchExistingRow = null;
-        boolean isResultSuccessful = false;
+//        boolean isResultSuccessful = false;
         List<Expression> whereExpressions = ViewMaintenanceUtilities.parseWhereExpression(whereExpression);
         /**
          * Applicable for one kind of operation i.e. either AND or OR between
@@ -87,52 +88,20 @@ public class WhereOperation extends GenericOperation {
 
 //        boolean deciderForNewRow = false; // If true then the stream of information needs to be stored else deleted if already present
 
-        Map<String, List<String>> columnMap = new HashMap<>();
+        Map<String, List<String>> columnMap = null; // Format: <Column_name> , <internalcassandra type, value, isPrimaryKey>
         String viewTableName = TABLE_PREFIX + triggerRequest.getBaseTableName();
+        Table viewTableConfig = ViewMaintenanceUtilities.getConcernedWhereTableFromWhereTablesList(
+                triggerRequest, operationViewTables);
         logger.debug("### Checking --- viewTableName  :: " + viewTableName);
         LinkedTreeMap dataJson = triggerRequest.getDataJson();
         Set keySet = dataJson.keySet();
         Iterator dataIter = keySet.iterator();
-        String primaryKey = null;
-        while ( dataIter.hasNext() ) {
-            String tempDataKey = (String) dataIter.next();
-//            logger.debug("Key: " + tempDataKey);
-//            logger.debug("Value: " + dataJson.get(tempDataKey));
-            for ( Map.Entry<String, ColumnDefinition> columnDefinitionEntry : baseTableDesc.entrySet() ) {
-                ColumnDefinition columnDefinition = columnDefinitionEntry.getValue();
-                if ( tempDataKey.equalsIgnoreCase(columnDefinition.name.toString()) ) {
-                    List<String> tempList = new ArrayList<>(); // Format of storing: internalcassandra type, value, isPrimaryKey
+        WhereUtilityProcessor whereUtilityProcessor = getColumnMapWhereTableFromTriggerRequest(triggerRequest,
+                baseTableDesc, viewConfig, viewTableConfig);
 
-                    tempList.add(columnDefinition.type.toString());
-
-                    if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(
-                            columnDefinition.type.toString()).equalsIgnoreCase("String") ) {
-                        tempList.add(((String) dataJson.get(tempDataKey)).replaceAll("'", ""));
-                        if ( columnDefinition.isPartitionKey() ) {
-                            fetchExistingRow = QueryBuilder.select().all().from(viewConfig.getKeySpace(), viewTableName)
-                                    .where(QueryBuilder.eq(columnDefinition.name.toString(),
-                                            ((String) dataJson.get(tempDataKey)).replaceAll("'", "")));
-                        }
-                    } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(
-                            columnDefinition.type.toString()).equalsIgnoreCase("Integer") ) {
-                        tempList.add((String) dataJson.get(tempDataKey));
-                        if ( columnDefinition.isPartitionKey() ) {
-                            fetchExistingRow = QueryBuilder.select().all().from(viewConfig.getKeySpace(), viewTableName)
-                                    .where(QueryBuilder.eq(columnDefinition.name.toString(),
-                                            Integer.parseInt(((String) dataJson.get(tempDataKey)))));
-                        }
-                    }
-                    tempList.add(columnDefinition.isPartitionKey() ? "true" : "false");
-
-                    columnMap.put(tempDataKey, tempList);
-                    if ( columnDefinition.isPartitionKey() ) {
-                        primaryKey = tempDataKey;
-
-                    }
-                }
-            }
-
-        }
+        fetchExistingRow = whereUtilityProcessor.getFetchExistingRecordQuery();
+        columnMap = whereUtilityProcessor.getColumnMap();
+        String primaryKey = whereUtilityProcessor.getWherePrimaryKey().getColumnName();
 
 
         logger.debug("### Stream available for maintenance :: " + columnMap);
@@ -215,7 +184,7 @@ public class WhereOperation extends GenericOperation {
                                 logger.debug("### New record does not comply with the view rules..hence deleted###");
                                 logger.debug("### Primary Key ###" + primaryKey);
                                 PrimaryKey whereTablePK = new PrimaryKey(primaryKey, columnMap.get(primaryKey).get(0),
-                                columnMap.get(primaryKey).get(1));
+                                        columnMap.get(primaryKey).get(1));
                                 deleteFromWhereViewTable(whereTablePK, whereTable);
                             }
                         } else {
@@ -237,80 +206,6 @@ public class WhereOperation extends GenericOperation {
 
     }
 
-
-//    private boolean checkExpression(Expression whereExpression, Map<String, List<String>> columnMap) {
-//
-//        logger.debug("### Checking -- Inside checkExpression :: Column map : " + columnMap);
-//        boolean result = false;
-//        Column column = null;
-//        String colName = "";
-//        String rightExpression = "";
-//        if ( whereExpression instanceof MinorThan ) {
-//            column = ((Column) ((MinorThan) whereExpression).getLeftExpression());
-////            tableName = column.getTable().getName();
-//            colName = column.getColumnName();
-//            List<String> userData = columnMap.get(colName);
-//            rightExpression = ((MinorThan) whereExpression).getRightExpression().toString();
-//            if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
-//                    .equalsIgnoreCase("Integer") ) {
-//                if ( Integer.parseInt(userData.get(1)) < Integer.parseInt(rightExpression) ) {
-//                    result = true;
-//                }
-//            } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
-//                    .equalsIgnoreCase(("String")) ) {
-//                //TODO: Need to implement
-//            }
-//        } else if ( whereExpression instanceof MinorThanEquals ) {
-//            column = ((Column) ((MinorThanEquals) whereExpression).getLeftExpression());
-////            tableName = column.getTable().getName();
-//            colName = column.getColumnName();
-//            List<String> userData = columnMap.get(colName);
-//            rightExpression = ((MinorThanEquals) whereExpression).getRightExpression().toString();
-//            if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
-//                    .equalsIgnoreCase("Integer") ) {
-//                if ( Integer.parseInt(userData.get(1)) <= Integer.parseInt(rightExpression) ) {
-//                    result = true;
-//                }
-//            } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
-//                    .equalsIgnoreCase(("String")) ) {
-//                //TODO: Need to implement
-//            }
-//        } else if ( whereExpression instanceof GreaterThan ) {
-//            column = ((Column) ((GreaterThan) whereExpression).getLeftExpression());
-////            tableName = column.getTable().getName();
-//            colName = column.getColumnName();
-//            List<String> userData = columnMap.get(colName);
-//            logger.debug("### Checking -- colName :: " + colName);
-//            rightExpression = ((GreaterThan) whereExpression).getRightExpression().toString();
-//            if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
-//                    .equalsIgnoreCase("Integer") ) {
-//                logger.debug("### Checking userdata.get(1)= {} and rightExpression = {} ", userData.get(1), rightExpression);
-//                if ( Integer.parseInt(userData.get(1)) > Integer.parseInt(rightExpression) ) {
-//                    result = true;
-//                }
-//            } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
-//                    .equalsIgnoreCase(("String")) ) {
-//                //TODO: Need to implement
-//            }
-//        } else if ( whereExpression instanceof GreaterThanEquals ) {
-//            column = ((Column) ((GreaterThanEquals) whereExpression).getLeftExpression());
-////            tableName = column.getTable().getName();
-//            colName = column.getColumnName();
-//            List<String> userData = columnMap.get(colName);
-//            rightExpression = ((GreaterThanEquals) whereExpression).getRightExpression().toString();
-//            if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
-//                    .equalsIgnoreCase("Integer") ) {
-//                if ( Integer.parseInt(userData.get(1)) >= Integer.parseInt(rightExpression) ) {
-//                    result = true;
-//                }
-//            } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(userData.get(0))
-//                    .equalsIgnoreCase(("String")) ) {
-//                //TODO: Need to implement
-//            }
-//        }
-//        logger.debug("### Result for checkExpression() " + result);
-//        return result;
-//    }
 
     private void insertIntoWhereViewTable(Map<String, List<String>> columnMap, Table whereTable) {
 
@@ -368,7 +263,6 @@ public class WhereOperation extends GenericOperation {
             }
 
 
-
         }
 
 
@@ -412,6 +306,37 @@ public class WhereOperation extends GenericOperation {
 
     @Override
     public boolean deleteTrigger(TriggerRequest triggerRequest) {
+        logger.debug("##### Entering delete trigger for Where Operations!!! ");
+        logger.debug("##### Received elements #####");
+        logger.debug("##### Table structure involved: {}", this.operationViewTables);
+        this.deltaTableRecord = triggerRequest.getDeletedRowDeltaView();
+        logger.debug("##### Delta table record {}", this.deltaTableRecord);
+        logger.debug("##### Trigger request :: " + triggerRequest);
+
+        Table whereTable = ViewMaintenanceUtilities.getConcernedWhereTableFromWhereTablesList
+                (triggerRequest, operationViewTables);
+        Map<String, ColumnDefinition> whereTableDesc = ViewMaintenanceUtilities.getTableDefinitition(
+                triggerRequest.getBaseTableKeySpace(), triggerRequest.getBaseTableName());
+        PrimaryKey deletePrimaryKey = ViewMaintenanceUtilities.getPrimaryKeyFromTableDescWithoutValue(whereTableDesc);
+
+        String[] whereStringArr = triggerRequest.getWhereString().split("=");
+        if ( deletePrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+            deletePrimaryKey.setColumnValueInString(whereStringArr[1].trim());
+        } else if ( deletePrimaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
+
+            deletePrimaryKey.setColumnValueInString(whereStringArr[1].trim().replace("'", ""));
+        }
+
+
+        Row recordTobeDeleted = ViewMaintenanceUtilities.getExistingRecordIfExists(deletePrimaryKey, whereTable);
+
+        logger.debug("#### Record to be deleted :: " + recordTobeDeleted);
+
+        if (recordTobeDeleted != null) {
+            logger.debug("##### Deleting the record for key :: " + deletePrimaryKey);
+            deleteFromWhereViewTable(deletePrimaryKey, whereTable);
+        }
+
         return false;
     }
 
@@ -420,5 +345,71 @@ public class WhereOperation extends GenericOperation {
         return "WhereOperation{" +
                 ",\n operationViewTables=" + operationViewTables +
                 '}';
+    }
+
+    private static WhereUtilityProcessor getColumnMapWhereTableFromTriggerRequest(
+            TriggerRequest triggerRequest, Map<String, ColumnDefinition> baseTableDesc,
+            Table viewConfig, Table whereTable) {
+        LinkedTreeMap dataJson = triggerRequest.getDataJson();
+        Set keySet = dataJson.keySet();
+        Iterator dataIter = keySet.iterator();
+        Map<String, List<String>> columnMap = new HashMap<>();
+        PrimaryKey whereTablePrimaryKey = null;
+
+        String viewTableName = whereTable.getName();
+
+        WhereUtilityProcessor whereUtilityProcessor;
+        Statement fetchExistingRowQuery = null;
+
+        while ( dataIter.hasNext() ) {
+            String tempDataKey = (String) dataIter.next();
+//            logger.debug("Key: " + tempDataKey);
+//            logger.debug("Value: " + dataJson.get(tempDataKey));
+            for ( Map.Entry<String, ColumnDefinition> columnDefinitionEntry : baseTableDesc.entrySet() ) {
+                ColumnDefinition columnDefinition = columnDefinitionEntry.getValue();
+                if ( tempDataKey.equalsIgnoreCase(columnDefinition.name.toString()) ) {
+                    List<String> tempList = new ArrayList<>(); // Format of storing: internalcassandra type, value, isPrimaryKey
+
+                    tempList.add(columnDefinition.type.toString());
+
+                    if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(
+                            columnDefinition.type.toString()).equalsIgnoreCase("String") ) {
+                        tempList.add(((String) dataJson.get(tempDataKey)).replaceAll("'", ""));
+                        if ( columnDefinition.isPartitionKey() ) {
+                            fetchExistingRowQuery = QueryBuilder.select().all().from(viewConfig.getKeySpace(), viewTableName)
+                                    .where(QueryBuilder.eq(columnDefinition.name.toString(),
+                                            ((String) dataJson.get(tempDataKey)).replaceAll("'", "")));
+                        }
+                    } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(
+                            columnDefinition.type.toString()).equalsIgnoreCase("Integer") ) {
+                        tempList.add((String) dataJson.get(tempDataKey));
+                        if ( columnDefinition.isPartitionKey() ) {
+                            fetchExistingRowQuery = QueryBuilder.select().all().from(viewConfig.getKeySpace(), viewTableName)
+                                    .where(QueryBuilder.eq(columnDefinition.name.toString(),
+                                            Integer.parseInt(((String) dataJson.get(tempDataKey)))));
+                        }
+                    }
+                    tempList.add(columnDefinition.isPartitionKey() ? "true" : "false");
+
+                    columnMap.put(tempDataKey, tempList);
+                    if ( columnDefinition.isPartitionKey() ) {
+                        whereTablePrimaryKey = new PrimaryKey(tempDataKey, columnDefinitionEntry
+                                .getValue().type.toString(),
+                                ((String) dataJson.get(tempDataKey)).replaceAll("'", ""));
+
+                    }
+                    break;
+                }
+            }
+
+        }
+
+        whereUtilityProcessor = new WhereUtilityProcessor();
+
+        whereUtilityProcessor.setColumnMap(columnMap);
+        whereUtilityProcessor.setWherePrimaryKey(whereTablePrimaryKey);
+        whereUtilityProcessor.setFetchExistingRecordQuery(fetchExistingRowQuery);
+
+        return whereUtilityProcessor;
     }
 }

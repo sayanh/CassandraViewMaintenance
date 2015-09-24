@@ -28,6 +28,7 @@ public class RunTestCases {
     private static final Logger logger = LoggerFactory.getLogger(RunTestCases.class);
     public static final String TEST_CASES_JSON_FILE = "testcases_joins.json";
     private static final int VIEW_PROCESSING_INTERVAL = 20000;
+    private static final int PAUSE_BETWEEN_QUERIES = 500;
 
     public static void main(String[] args) {
         RunTestCases runTestCases = new RunTestCases();
@@ -47,6 +48,7 @@ public class RunTestCases {
                 logger.info("#### Executing the queries####### ");
                 for ( String query : testCase.getValue() ) {
                     CassandraClientUtilities.commandExecution("localhost", query);
+                    Thread.sleep(PAUSE_BETWEEN_QUERIES);
                 }
 
                 logger.debug("#### View maintenance process is on...!!!!");

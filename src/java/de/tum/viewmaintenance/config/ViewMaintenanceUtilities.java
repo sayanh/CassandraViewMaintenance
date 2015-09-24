@@ -25,6 +25,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.DataTracker;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -983,6 +984,10 @@ public final class ViewMaintenanceUtilities {
 
     }
 
+    public static PrimaryKey getPrimaryKeyFromTableConfigWithoutValue(String keyspace, String tableName){
+            Map<String, ColumnDefinition> tableDesc = ViewMaintenanceUtilities.getTableDefinitition(keyspace, tableName);
+        return getPrimaryKeyFromTableDescWithoutValue(tableDesc);
+    }
 
     public static PrimaryKey getPrimaryKeyFromTableDescWithoutValue(Map<String, ColumnDefinition> tableDesc) {
         PrimaryKey finalPrimaryKey = null;
