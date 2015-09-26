@@ -278,13 +278,19 @@ public class ViewMaintenanceLogsReader extends Thread {
                                     } else {
                                         deltaViewRow = deltaViewTriggerResponse.getDeltaViewUpdatedRow();
                                     }
-                                    if ( viewsTables.get(i).getSqlString() != null || !viewsTables.get(i).getSqlString().equalsIgnoreCase("") ) {
+
+                                    if ( (viewsTables.get(i).getSqlString() != null || !viewsTables.get(i).getSqlString().equalsIgnoreCase(""))
+                                            && deltaViewRow != null ) {
                                         request.setCurrentRecordInDeltaView(deltaViewRow);
                                         triggerResponse = ((SQLViewMaintenanceTrigger) triggerProcess)
                                                 .processSQLViewMaintenance(type, viewsTables.get(i), request);
                                         if ( !viewCache.containsValue(viewsTables.get(i).getName()) ) {
                                             viewCache.put(viewsTables.get(i).getName(), triggerProcess);
                                         }
+                                    } else {
+                                        logger.debug("#### Deltaview record is null hence view maintenance not required!!!");
+                                        triggerResponse = new TriggerResponse();
+                                        triggerResponse.setIsSuccess(true);
                                     }
                                 }
                                 if ( !triggerResponse.isSuccess() ) {

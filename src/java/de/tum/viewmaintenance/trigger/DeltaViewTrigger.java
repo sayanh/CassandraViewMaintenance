@@ -94,7 +94,7 @@ public class DeltaViewTrigger extends TriggerProcess {
             List<Row> existingRecordList = CassandraClientUtilities.commandExecution("localhost", selectQuery);
             logger.debug("Result | existing row | " + existingRecordList);
 
-            if ( existingRecordList !=null && existingRecordList.size() > 0 ) {
+            if ( existingRecordList != null && existingRecordList.size() > 0 ) {
                 // Update the delta table with the latest information for this key.
                 updateExistingRow(existingRecordList.get(0), request, columnMapBaseTable, primaryKey);
 
@@ -129,7 +129,7 @@ public class DeltaViewTrigger extends TriggerProcess {
     *
     */
     private static void updateExistingRow(Row existingRow, TriggerRequest request, Map<String, Column> currentDataMap, String primaryKey) {
-        logger.debug("### Checking -- currentDataMap:: " +  currentDataMap);
+        logger.debug("### Checking -- currentDataMap:: " + currentDataMap);
         StringBuffer updateQuery = new StringBuffer("update " + request.getBaseTableKeySpace() + "."
                 + request.getBaseTableName() + DELTAVIEW_SUFFIX + " set ");
 
@@ -322,13 +322,30 @@ public class DeltaViewTrigger extends TriggerProcess {
             Row existingRecordInDeltaView = null;
 
             if ( javaTypePrimaryKey.equalsIgnoreCase("Integer") ) {
-                existingRecordInDeltaView = CassandraClientUtilities.getAllRows(request.getBaseTableKeySpace(),
+                List<Row> existingRecords = CassandraClientUtilities.getAllRows(request.getBaseTableKeySpace(),
                         request.getBaseTableName() + DELTAVIEW_SUFFIX, QueryBuilder.eq(primaryKeyName,
-                                Integer.parseInt(primaryKeyValue))).get(0);
+                                Integer.parseInt(primaryKeyValue)));
+
+                if ( existingRecords == null || existingRecords.size() < 1 ) {
+                    logger.debug("#### View Mainenance not required!! ");
+                    response.setIsSuccess(true);
+                    return response;
+                }
+                existingRecordInDeltaView = existingRecords.get(0);
+
+
             } else if ( javaTypePrimaryKey.equalsIgnoreCase("String") ) {
-                existingRecordInDeltaView = CassandraClientUtilities.getAllRows(request.getBaseTableKeySpace(),
+
+                List<Row> existingRecords = CassandraClientUtilities.getAllRows(request.getBaseTableKeySpace(),
                         request.getBaseTableName() + DELTAVIEW_SUFFIX, QueryBuilder.eq(primaryKeyName,
-                                primaryKeyValue)).get(0);
+                                primaryKeyValue));
+
+                if ( existingRecords == null || existingRecords.size() < 1 ) {
+                    logger.debug("#### View Mainenance not required!! ");
+                    response.setIsSuccess(true);
+                    return response;
+                }
+                existingRecordInDeltaView = existingRecords.get(0);
             }
 
             logger.debug("Record to be deleted = " + existingRecordInDeltaView);
