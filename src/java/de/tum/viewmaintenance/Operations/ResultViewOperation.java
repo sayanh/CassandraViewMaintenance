@@ -344,7 +344,7 @@ public class ResultViewOperation extends GenericOperation {
             List<List<String>> curAggregationKeyData = new ArrayList<>();
             curAggregationKeyData.add(aggregationKeyData);
 
-            List<String> curFunctionTargetColumnData = new ArrayList<>();
+            List<String> curFunctionTargetColumnData = new ArrayList<>(); // Format:  nameOfColumn, cassandraInternalType, valueInString
             curFunctionTargetColumnData.add(functionColNamePreAgg);
             curFunctionTargetColumnData.add(ViewMaintenanceUtilities.getCassInternalDataTypeFromCQL3DataType("int"));
             curFunctionTargetColumnData.add(userDataCur.get(functionColNamePreAgg).get(1));
@@ -652,15 +652,15 @@ public class ResultViewOperation extends GenericOperation {
 
         try {
             if ( inputViewTables.size() >= 1 && inputViewTables.get(0).getName().contains(WHERE_TABLE_INDENTIFIER) ) {
-                logger.debug("#### Where insert trigger for result view maintenance!!");
+                logger.debug("#### Where delete trigger for result view maintenance!!");
                 whereDeleteTrigger(triggerRequest);
             } else if ( inputViewTables.size() == 1 && inputViewTables.get(0).getName().contains(JOIN_TABLE_INDENTIFIER) ) {
-                logger.debug("#### Join insert trigger for result view maintenance!!");
+                logger.debug("#### Join delete trigger for result view maintenance!!");
             } else if ( inputViewTables.size() == 1 && inputViewTables.get(0).getName().contains(AGG_TABLE_INDENTIFIER) ) {
-                logger.debug("#### Agg insert trigger for result view maintenance!!");
+                logger.debug("#### Agg delete trigger for result view maintenance!!");
                 aggDeleteTrigger(triggerRequest);
             } else if ( inputViewTables.size() == 1 && inputViewTables.get(0).getName().contains(PREAGG_TABLE_INDENTIFIER) ) {
-                logger.debug("#### Preagg insert trigger for result view maintenance!!");
+                logger.debug("#### Preagg delete trigger for result view maintenance!!");
                 preaggDeleteTrigger(triggerRequest);
             }
         } catch ( Exception e ) {
@@ -674,7 +674,6 @@ public class ResultViewOperation extends GenericOperation {
 
     public void whereDeleteTrigger(TriggerRequest triggerRequest) {
         Table whereTableConfig = ViewMaintenanceUtilities.getConcernedWhereTableFromWhereTablesList(triggerRequest, inputViewTables);
-
 
         PrimaryKey whereTablePrimaryKey = ViewMaintenanceUtilities.getPrimaryKeyFromTableConfigWithoutValue(
                 whereTableConfig.getKeySpace(), whereTableConfig.getName());
@@ -706,6 +705,82 @@ public class ResultViewOperation extends GenericOperation {
     }
 
     public void preaggDeleteTrigger(TriggerRequest triggerRequest) {
+
+        Table preAggTableConfig = inputViewTables.get(0);
+        List<List<String>> userDataResultTable = null; //Format : List of <nameOfColumn, cassandraInternalType, valueInString>
+        List<String> curFunctionTargetColumnData = null; // Format:  nameOfColumn, cassandraInternalType, valueInString
+        Map<String, ColumnDefinition> preAggTableDesc = ViewMaintenanceUtilities.getTableDefinitition(preAggTableConfig
+                .getKeySpace(), preAggTableConfig.getName());
+
+        PrimaryKey preAggPrimaryKey = ViewMaintenanceUtilities.getPrimaryKeyFromTableConfigWithoutValue(
+                preAggTableConfig.getKeySpace(), preAggTableConfig.getName());
+
+        PrimaryKey resultTablePrimaryKey = ViewMaintenanceUtilities.getPrimaryKeyFromTableConfigWithoutValue(
+                operationViewTables.get(0).getKeySpace(), operationViewTables.get(0).getName());
+
+        Map<String, ColumnDefinition> resultViewTableDesc = ViewMaintenanceUtilities.getTableDefinitition(operationViewTables
+                .get(0).getKeySpace(), operationViewTables.get(0).getName());
+
+//        String[] whereStringArr = triggerRequest.getWhereString().split("=");
+//        if ( preAggPrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+//            preAggPrimaryKey.setColumnValueInString(whereStringArr[1].trim());
+//            resultTablePrimaryKey.setColumnValueInString(whereStringArr[1].trim());
+//        } else if ( preAggPrimaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
+//            preAggPrimaryKey.setColumnValueInString(whereStringArr[1].trim().replace("'", ""));
+//            resultTablePrimaryKey.setColumnValueInString(whereStringArr[1].trim().replace("'", ""));
+//        }
+
+        for ( Map.Entry<String, ColumnDefinition> preAggTableEntry : preAggTableDesc.entrySet() ) {
+            String derivedColumnName = preAggTableEntry.getKey().substring(preAggTableEntry.getKey().indexOf("_") + 1);
+//            String prefixForColName = preAggTableEntry.getKey().substring(0, preAggTableEntry.getKey().indexOf("_"));
+            if ( preAggTableEntry.getValue().isPartitionKey() ) {
+                if ( preAggPrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+                    int value = deltaTableRecord.getInt(derivedColumnName + DeltaViewTrigger.CURRENT);
+                    preAggPrimaryKey.setColumnValueInString(value + "");
+                } else if ( preAggPrimaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
+                    String value = deltaTableRecord.getString(derivedColumnName + DeltaViewTrigger.CURRENT);
+                    preAggPrimaryKey.setColumnValueInString(value);
+                }
+                break;
+            }
+        }
+
+        Row recordTobeDeleted = ViewMaintenanceUtilities.getExistingRecordIfExists(preAggPrimaryKey, preAggTableConfig);
+        logger.debug("### Delete from result view for primary key :: " + resultTablePrimaryKey);
+
+
+        if ( recordTobeDeleted == null ) {
+            deleteFromResultView(resultTablePrimaryKey);
+        } else {
+            userDataResultTable = new ArrayList<>();
+            for ( Map.Entry<String, ColumnDefinition> resultTableEntry : resultViewTableDesc.entrySet() ) {
+                curFunctionTargetColumnData = new ArrayList<>();
+                String javaDataType = ViewMaintenanceUtilities.getJavaTypeFromCassandraType(resultTableEntry.getValue().type
+                        .toString());
+                curFunctionTargetColumnData.add(resultTableEntry.getKey());
+                curFunctionTargetColumnData.add(resultTableEntry.getValue().type.toString());
+                if ( resultTableEntry.getValue().isPartitionKey() ) {
+                    if ( javaDataType.equalsIgnoreCase("Integer") ) {
+                        curFunctionTargetColumnData.add(recordTobeDeleted.getInt(triggerRequest.getBaseTableName()
+                                + "_" + resultTableEntry.getKey()) + "");
+                    } else if ( javaDataType.equalsIgnoreCase("String") ) {
+                        curFunctionTargetColumnData.add(recordTobeDeleted.getString(triggerRequest.getBaseTableName()
+                                + "_" + resultTableEntry.getKey()));
+                    }
+                } else {
+                    if ( javaDataType.equalsIgnoreCase("Integer") ) {
+                        curFunctionTargetColumnData.add(recordTobeDeleted.getInt(resultTableEntry.getKey()) + "");
+                    } else if ( javaDataType.equalsIgnoreCase("String") ) {
+                        curFunctionTargetColumnData.add(recordTobeDeleted.getString(resultTableEntry.getKey()));
+                    }
+                }
+                userDataResultTable.add(curFunctionTargetColumnData);
+            }
+
+            logger.debug("##### preaggDeleteTrigger :: userDataResultTable :: " + userDataResultTable);
+            preAggActualInsertProcess(userDataResultTable);
+        }
+
 
     }
 
