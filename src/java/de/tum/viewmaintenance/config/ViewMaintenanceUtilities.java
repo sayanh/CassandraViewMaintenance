@@ -714,6 +714,47 @@ public final class ViewMaintenanceUtilities {
     }
 
 
+    public static Map<String, List<String>> getCurrentWhereColumnMapFromDeltaRecord(Row deltaRecord, Table inputWhereTableConfig) {
+        Map<String, List<String>> columnMap = new HashMap<>(); //Format: <column_name>, <cassandra_internal_type,
+        // valueinString, isPrimary  >
+
+        Map<String, ColumnDefinition> whereTableDesc = ViewMaintenanceUtilities.getTableDefinitition(inputWhereTableConfig
+                .getKeySpace(), inputWhereTableConfig.getName());
+
+
+        for ( Map.Entry<String, ColumnDefinition> whereTableEntry : whereTableDesc.entrySet() ) {
+
+            List<String> tempList = new ArrayList<>();
+            tempList.add(whereTableEntry.getValue().type.toString());
+            String javaDataType = ViewMaintenanceUtilities.getJavaTypeFromCassandraType(whereTableEntry.getValue()
+                    .type.toString());
+
+            if ( whereTableEntry.getValue().isPartitionKey() ) {
+                if ( javaDataType.equalsIgnoreCase("Integer") ) {
+                    tempList.add(deltaRecord.getInt(whereTableEntry.getKey()) + "");
+                } else if ( javaDataType.equalsIgnoreCase("String") ) {
+                    tempList.add(deltaRecord.getString(whereTableEntry.getKey()));
+                }
+                tempList.add("true");
+            } else {
+                if ( javaDataType.equalsIgnoreCase("Integer") ) {
+                    tempList.add(deltaRecord.getInt(whereTableEntry.getKey() + DeltaViewTrigger.CURRENT) + "");
+                } else if ( javaDataType.equalsIgnoreCase("String") ) {
+                    tempList.add(deltaRecord.getString(whereTableEntry.getKey() + DeltaViewTrigger.CURRENT));
+                }
+                tempList.add("false");
+            }
+            columnMap.put(whereTableEntry.getKey(), tempList);
+
+        }
+
+        logger.debug("##### getCurrentWhereColumnMapFromDeltaRecord :: columnMap :: " + columnMap);
+
+        return columnMap;
+    }
+
+
+
     public static LinkedTreeMap createDataJsonForOldValue(LinkedTreeMap dataJsonMap, List<String> oldColData) {
         // Format: oldColData: ColName, Cass Type, Value
         Set keySet = dataJsonMap.keySet();
@@ -782,6 +823,48 @@ public final class ViewMaintenanceUtilities {
 
 
         return didOldValueSatisfyWhereClause;
+
+    }
+
+
+    public static boolean checkCurrValueSatisfyWhereClause(Table viewConfig, TriggerRequest triggerRequest,
+                                                           Row deltaTableRecord, Table inputWhereTable) {
+        List<Expression> expressions = ViewMaintenanceUtilities
+                .getParticularWhereExpressionBasedOnBaseTableOperation(viewConfig.getSqlString(),
+                        triggerRequest.getBaseTableName());
+        logger.debug("### Getting pertinent expressions :: " + expressions);
+
+        String logicalOperatorInvovled = ViewMaintenanceUtilities.getAndOrBasedOnWhereExpression(
+                viewConfig.getSqlString());
+        logger.debug("### Getting the logical operator involved :: " + logicalOperatorInvovled);
+
+        Map<String, List<String>> columnMapWhereTable = ViewMaintenanceUtilities.getCurrentWhereColumnMapFromDeltaRecord(
+                deltaTableRecord, inputWhereTable);
+
+        logger.debug("### Get columnMapWhereTable for current target column :: " + columnMapWhereTable);
+        boolean curValueSatisfyWhereClause = true;
+
+        if ( logicalOperatorInvovled.equalsIgnoreCase("and") ) {
+            for ( Expression expression : expressions ) {
+
+                logger.debug("#### Checking for expression :: " + expression);
+                if ( !ViewMaintenanceUtilities.checkExpression(expression, columnMapWhereTable) ) {
+                    curValueSatisfyWhereClause = false;
+                    break;
+                }
+            }
+
+        } else if ( logicalOperatorInvovled.equalsIgnoreCase("or") ) {
+            // TODO: Not yet implemented
+        } else {
+            logger.debug("### Single expression case!! expression = " + expressions.get(0));
+            logger.debug("### ColumnMapWhereTable(current value) :: columnMapWhereTable :: " + columnMapWhereTable);
+            if ( !ViewMaintenanceUtilities.checkExpression(expressions.get(0), columnMapWhereTable) ) {
+                curValueSatisfyWhereClause = false;
+            }
+        }
+
+        return curValueSatisfyWhereClause;
 
     }
 
@@ -952,21 +1035,21 @@ public final class ViewMaintenanceUtilities {
 
         for ( de.tum.viewmaintenance.view_table_structure.Column column : joinTableConfig.getColumns() ) {
             columnNames.add(column.getName());
-            if (column.getDataType().equalsIgnoreCase("map <int, text>")) {
+            if ( column.getDataType().equalsIgnoreCase("map <int, text>") ) {
                 objects.add(existingRow.getMap(column.getName(), Integer.class, String.class));
-            } else if (column.getDataType().equalsIgnoreCase("map <text, int>")) {
+            } else if ( column.getDataType().equalsIgnoreCase("map <text, int>") ) {
                 objects.add(existingRow.getMap(column.getName(), String.class, Integer.class));
-            } else if (column.getDataType().equalsIgnoreCase("map <int, int>")) {
+            } else if ( column.getDataType().equalsIgnoreCase("map <int, int>") ) {
                 objects.add(existingRow.getMap(column.getName(), Integer.class, Integer.class));
-            } else if (column.getDataType().equalsIgnoreCase("map <text, text>")) {
+            } else if ( column.getDataType().equalsIgnoreCase("map <text, text>") ) {
                 objects.add(existingRow.getMap(column.getName(), String.class, String.class));
-            } else if (column.getDataType().equalsIgnoreCase("list <text>")) {
+            } else if ( column.getDataType().equalsIgnoreCase("list <text>") ) {
                 objects.add(existingRow.getList(column.getName(), String.class));
-            } else if (column.getDataType().equalsIgnoreCase("list <int>")) {
+            } else if ( column.getDataType().equalsIgnoreCase("list <int>") ) {
                 objects.add(existingRow.getList(column.getName(), Integer.class));
-            } else if (column.getDataType().equalsIgnoreCase("int")) {
+            } else if ( column.getDataType().equalsIgnoreCase("int") ) {
                 objects.add(existingRow.getInt(column.getName()));
-            } else if (column.getDataType().equalsIgnoreCase("text")) {
+            } else if ( column.getDataType().equalsIgnoreCase("text") ) {
                 objects.add(existingRow.getString(column.getName()));
             }
         }
@@ -984,15 +1067,15 @@ public final class ViewMaintenanceUtilities {
 
     }
 
-    public static PrimaryKey getPrimaryKeyFromTableConfigWithoutValue(String keyspace, String tableName){
-            Map<String, ColumnDefinition> tableDesc = ViewMaintenanceUtilities.getTableDefinitition(keyspace, tableName);
+    public static PrimaryKey getPrimaryKeyFromTableConfigWithoutValue(String keyspace, String tableName) {
+        Map<String, ColumnDefinition> tableDesc = ViewMaintenanceUtilities.getTableDefinitition(keyspace, tableName);
         return getPrimaryKeyFromTableDescWithoutValue(tableDesc);
     }
 
     public static PrimaryKey getPrimaryKeyFromTableDescWithoutValue(Map<String, ColumnDefinition> tableDesc) {
         PrimaryKey finalPrimaryKey = null;
-        for ( Map.Entry<String, ColumnDefinition> tableDescEntry: tableDesc.entrySet() ) {
-            if (tableDescEntry.getValue().isPartitionKey()) {
+        for ( Map.Entry<String, ColumnDefinition> tableDescEntry : tableDesc.entrySet() ) {
+            if ( tableDescEntry.getValue().isPartitionKey() ) {
                 finalPrimaryKey = new PrimaryKey(tableDescEntry.getValue().name.toString(),
                         tableDescEntry.getValue().type.toString(), "");
             }

@@ -327,75 +327,81 @@ public class ResultViewOperation extends GenericOperation {
         logger.debug("### Column name for the function to be applied on :: " + functionColNamePreAgg);
         logger.debug("### Cur existing record in the pre aggregation view :: " + curExistingRecordPreAggView);
 
-        // Adding the value for the function_targetcol from existing record in preagg table
-        List<String> functionTargetColDataList = userDataCur.get(functionColNamePreAgg);
-        functionTargetColDataList.set(1, curExistingRecordPreAggView.getInt(functionColNamePreAgg) + "");
-        userDataCur.put(functionColNamePreAgg, functionTargetColDataList);
+        if ( curExistingRecordPreAggView != null ) {
 
-        logger.debug("### Final cur user data with all the values :: " + userDataCur);
+            // Adding the value for the function_targetcol from existing record in preagg table
+            List<String> functionTargetColDataList = userDataCur.get(functionColNamePreAgg);
+            functionTargetColDataList.set(1, curExistingRecordPreAggView.getInt(functionColNamePreAgg) + "");
+            userDataCur.put(functionColNamePreAgg, functionTargetColDataList);
 
-        // check for the change in aggregation key
-        String statusEntryColAggKey = ViewMaintenanceUtilities.checkForChangeInAggregationKeyInDeltaView(aggregationKeyData,
-                deltaTableRecord);
+            logger.debug("### Final cur user data with all the values :: " + userDataCur);
 
-        // Insert the curr agg key data into the result view table
-        List<List<String>> curAggregationKeyData = new ArrayList<>();
-        curAggregationKeyData.add(aggregationKeyData);
+            // check for the change in aggregation key
+            String statusEntryColAggKey = ViewMaintenanceUtilities.checkForChangeInAggregationKeyInDeltaView(aggregationKeyData,
+                    deltaTableRecord);
 
-        List<String> curFunctionTargetColumnData = new ArrayList<>();
-        curFunctionTargetColumnData.add(functionColNamePreAgg);
-        curFunctionTargetColumnData.add(ViewMaintenanceUtilities.getCassInternalDataTypeFromCQL3DataType("int"));
-        curFunctionTargetColumnData.add(userDataCur.get(functionColNamePreAgg).get(1));
-        curAggregationKeyData.add(curFunctionTargetColumnData);
+            // Insert the curr agg key data into the result view table
+            List<List<String>> curAggregationKeyData = new ArrayList<>();
+            curAggregationKeyData.add(aggregationKeyData);
 
-        logger.debug("### Map for cur aggregate key data :: " + curAggregationKeyData);
+            List<String> curFunctionTargetColumnData = new ArrayList<>();
+            curFunctionTargetColumnData.add(functionColNamePreAgg);
+            curFunctionTargetColumnData.add(ViewMaintenanceUtilities.getCassInternalDataTypeFromCQL3DataType("int"));
+            curFunctionTargetColumnData.add(userDataCur.get(functionColNamePreAgg).get(1));
+            curAggregationKeyData.add(curFunctionTargetColumnData);
 
-        preAggActualInsertProcess(curAggregationKeyData);
+            logger.debug("### Map for cur aggregate key data :: " + curAggregationKeyData);
 
-        if ( statusEntryColAggKey.equals("changed") ) {
+            preAggActualInsertProcess(curAggregationKeyData);
 
-            PrimaryKey oldAggKeyPK = preAggViewTablePK;
+            if ( statusEntryColAggKey.equals("changed") ) {
 
-            // Insert the old agg key data into the result view table
-            if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(aggregationKeyData.get(1))
-                    .equalsIgnoreCase("Integer") ) {
+                PrimaryKey oldAggKeyPK = preAggViewTablePK;
 
-                oldAggKeyPK.setColumnValueInString((deltaTableRecord.getInt(aggregationKeyData.get(0) + "")
-                        + DeltaViewTrigger.LAST));
+                // Insert the old agg key data into the result view table
+                if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(aggregationKeyData.get(1))
+                        .equalsIgnoreCase("Integer") ) {
 
-            } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(aggregationKeyData.get(1))
-                    .equalsIgnoreCase("String") ) {
+                    oldAggKeyPK.setColumnValueInString((deltaTableRecord.getInt(aggregationKeyData.get(0) + "")
+                            + DeltaViewTrigger.LAST));
 
-                oldAggKeyPK.setColumnValueInString(deltaTableRecord.getString(aggregationKeyData.get(0)
-                        + DeltaViewTrigger.LAST));
-            }
+                } else if ( ViewMaintenanceUtilities.getJavaTypeFromCassandraType(aggregationKeyData.get(1))
+                        .equalsIgnoreCase("String") ) {
 
-
-            // Processing starts for old aggregate key data
-            lastExistingRecordPreAggView = ViewMaintenanceUtilities.getExistingRecordIfExists(oldAggKeyPK,
-                    preaggTable);
-
-            logger.debug("### Existing record for pre agg view for old agg key:: " + lastExistingRecordPreAggView);
-
-            List<List<String>> oldAggregateKeyData = new ArrayList<>();
-            for ( Map.Entry<String, List<String>> userDataEntry : userDataCur.entrySet() ) {
-                List<String> tempList = new ArrayList<>();
-                tempList.add(userDataEntry.getKey());
-                tempList.add(userDataEntry.getValue().get(0));
-                if ( userDataEntry.getValue().get(2).equalsIgnoreCase("true") ) {
-                    tempList.add(oldAggKeyPK.getColumnValueInString());
-                } else {
-                    tempList.add(lastExistingRecordPreAggView.getInt(functionColNamePreAgg) + "");
+                    oldAggKeyPK.setColumnValueInString(deltaTableRecord.getString(aggregationKeyData.get(0)
+                            + DeltaViewTrigger.LAST));
                 }
-                oldAggregateKeyData.add(tempList);
+
+
+                // Processing starts for old aggregate key data
+                lastExistingRecordPreAggView = ViewMaintenanceUtilities.getExistingRecordIfExists(oldAggKeyPK,
+                        preaggTable);
+
+                logger.debug("### Existing record for pre agg view for old agg key:: " + lastExistingRecordPreAggView);
+
+                List<List<String>> oldAggregateKeyData = new ArrayList<>();
+                for ( Map.Entry<String, List<String>> userDataEntry : userDataCur.entrySet() ) {
+                    List<String> tempList = new ArrayList<>();
+                    tempList.add(userDataEntry.getKey());
+                    tempList.add(userDataEntry.getValue().get(0));
+                    if ( userDataEntry.getValue().get(2).equalsIgnoreCase("true") ) {
+                        tempList.add(oldAggKeyPK.getColumnValueInString());
+                    } else {
+                        tempList.add(lastExistingRecordPreAggView.getInt(functionColNamePreAgg) + "");
+                    }
+                    oldAggregateKeyData.add(tempList);
+
+                }
+
+                logger.debug("### Map for old aggregate key data :: " + oldAggregateKeyData);
+
+                preAggActualInsertProcess(oldAggregateKeyData);
 
             }
 
-            logger.debug("### Map for old aggregate key data :: " + oldAggregateKeyData);
-
-            preAggActualInsertProcess(oldAggregateKeyData);
 
         }
+
 
     }
 
@@ -688,7 +694,7 @@ public class ResultViewOperation extends GenericOperation {
         Row recordTobeDeleted = ViewMaintenanceUtilities.getExistingRecordIfExists(whereTablePrimaryKey, whereTableConfig);
 
         logger.debug("### Delete from result view for primary key :: " + resultTablePrimaryKey);
-        if (recordTobeDeleted == null) {
+        if ( recordTobeDeleted == null ) {
             deleteFromResultView(resultTablePrimaryKey);
         }
 
