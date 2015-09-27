@@ -331,6 +331,93 @@ public class AggOperation extends GenericOperation {
 
     @Override
     public boolean deleteTrigger(TriggerRequest triggerRequest) {
+        this.deltaTableRecord = triggerRequest.getCurrentRecordInDeltaView();
+        logger.debug("##### Entering delete trigger for Aggregate Operations!!! ");
+        logger.debug("##### Received elements #####");
+        logger.debug("##### Table structure involved: {}", this.operationViewTables);
+        logger.debug("##### Delta table record {}", this.deltaTableRecord);
+        logger.debug("##### Input tables structure {}", this.inputViewTables);
+        logger.debug("##### Trigger request :: " + triggerRequest);
+
+        Table preAggTableConfig = inputViewTables.get(0);
+
+        Map<String, ColumnDefinition> preAggTableDesc = ViewMaintenanceUtilities.getTableDefinitition(preAggTableConfig
+                .getKeySpace(), preAggTableConfig.getName());
+
+        Map<String, ColumnDefinition> aggTableDesc = ViewMaintenanceUtilities.getTableDefinitition(operationViewTables.get(0)
+                .getKeySpace(), operationViewTables.get(0).getName());
+
+        PrimaryKey preAggPrimaryKey = null;
+        PrimaryKey aggTablePrimaryKey = null;
+        String derivedColumnName = "";
+        String cql3Type = "";
+
+        for ( Map.Entry<String, ColumnDefinition> preAggColEntry : preAggTableDesc.entrySet() ) {
+            if ( preAggColEntry.getValue().isPartitionKey() ) {
+
+                derivedColumnName = preAggColEntry.getKey().substring(preAggColEntry.getKey().indexOf("_") + 1);
+                cql3Type = ViewMaintenanceUtilities.getCQL3DataTypeFromCassandraInternalDataType(preAggColEntry
+                        .getValue().type.toString());
+                if ( cql3Type.equalsIgnoreCase("text") ) {
+                    preAggPrimaryKey = new PrimaryKey(preAggColEntry.getKey(), preAggColEntry.getValue().type.toString(),
+                            deltaTableRecord.getString(derivedColumnName + DeltaViewTrigger.CURRENT));
+
+                    aggTablePrimaryKey = new PrimaryKey(preAggColEntry.getKey(), preAggColEntry.getValue().type.toString(),
+                            deltaTableRecord.getString(derivedColumnName + DeltaViewTrigger.CURRENT));
+
+                } else if ( cql3Type.equalsIgnoreCase("int") ) {
+                    preAggPrimaryKey = new PrimaryKey(preAggColEntry.getKey(), preAggColEntry.getValue().type.toString(),
+                            deltaTableRecord.getInt(derivedColumnName + DeltaViewTrigger.CURRENT) + "");
+                    aggTablePrimaryKey = new PrimaryKey(preAggColEntry.getKey(), preAggColEntry.getValue().type.toString(),
+                            deltaTableRecord.getString(derivedColumnName + DeltaViewTrigger.CURRENT));
+
+                }
+
+            }
+
+            logger.debug("#### Pre agg table primary key :: " + preAggPrimaryKey);
+            logger.debug("#### Agg table primary key :: " + aggTablePrimaryKey);
+
+        }
+
+        Row existingRecordInPreAgg = ViewMaintenanceUtilities.getExistingRecordIfExists(preAggPrimaryKey, preAggTableConfig);
+
+        logger.debug("#### existingRecordInPreAgg :: " + existingRecordInPreAgg);
+        Map<String, List<String>> userData = null;
+
+        if (existingRecordInPreAgg != null) {
+            userData = new HashMap<>();
+            // Format::
+            // Key: Name of the column
+            // Value : CassandraInternalType, ValueInString, isPrimaryKeyForReverseJoinTable
+            for ( Map.Entry<String, ColumnDefinition> aggTableEntry : aggTableDesc.entrySet() ) {
+                List<String> tempList = new ArrayList<>();
+                tempList.add(aggTableEntry.getValue().type.toString());
+
+                String javaType = ViewMaintenanceUtilities.getJavaTypeFromCassandraType(aggTableEntry.getValue().type.toString());
+
+                if (javaType.equalsIgnoreCase("Integer")) {
+                    tempList.add(existingRecordInPreAgg.getInt(aggTableEntry.getKey()) + "");
+                } else if (javaType.equalsIgnoreCase("String")) {
+                    tempList.add(existingRecordInPreAgg.getString(aggTableEntry.getKey())   );
+                }
+
+                if (aggTableEntry.getValue().isPartitionKey()) {
+                    tempList.add("true");
+                } else {
+                    tempList.add("false");
+                }
+
+                userData.put(aggTableEntry.getKey(), tempList);
+            }
+
+            logger.debug("#### userData aggViewTable:: " + userData);
+            insertIntoAggViewTable(userData);
+        }
+
+
+
+
         return false;
     }
 

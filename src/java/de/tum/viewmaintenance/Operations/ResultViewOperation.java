@@ -721,15 +721,6 @@ public class ResultViewOperation extends GenericOperation {
         Map<String, ColumnDefinition> resultViewTableDesc = ViewMaintenanceUtilities.getTableDefinitition(operationViewTables
                 .get(0).getKeySpace(), operationViewTables.get(0).getName());
 
-//        String[] whereStringArr = triggerRequest.getWhereString().split("=");
-//        if ( preAggPrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
-//            preAggPrimaryKey.setColumnValueInString(whereStringArr[1].trim());
-//            resultTablePrimaryKey.setColumnValueInString(whereStringArr[1].trim());
-//        } else if ( preAggPrimaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
-//            preAggPrimaryKey.setColumnValueInString(whereStringArr[1].trim().replace("'", ""));
-//            resultTablePrimaryKey.setColumnValueInString(whereStringArr[1].trim().replace("'", ""));
-//        }
-
         for ( Map.Entry<String, ColumnDefinition> preAggTableEntry : preAggTableDesc.entrySet() ) {
             String derivedColumnName = preAggTableEntry.getKey().substring(preAggTableEntry.getKey().indexOf("_") + 1);
 //            String prefixForColName = preAggTableEntry.getKey().substring(0, preAggTableEntry.getKey().indexOf("_"));
@@ -744,6 +735,8 @@ public class ResultViewOperation extends GenericOperation {
                 break;
             }
         }
+
+        logger.debug("#### preAggPrimaryKey :: " + preAggPrimaryKey);
 
         Row recordTobeDeleted = ViewMaintenanceUtilities.getExistingRecordIfExists(preAggPrimaryKey, preAggTableConfig);
         logger.debug("### Delete from result view for primary key :: " + resultTablePrimaryKey);
