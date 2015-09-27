@@ -701,7 +701,80 @@ public class ResultViewOperation extends GenericOperation {
 
 
     public void aggDeleteTrigger(TriggerRequest triggerRequest) {
+        Table aggTableConfig = inputViewTables.get(0);
+        Map<String, List<String>> userDataResultTable = null; //Format : <NameOfColumn>, <valueInString, cassandraInternalType,
+        // isPrimaryKey>
+        List<String> curFunctionTargetColumnData = null; // Format:  nameOfColumn, cassandraInternalType, valueInString
+        Map<String, ColumnDefinition> aggTableDesc = ViewMaintenanceUtilities.getTableDefinitition(aggTableConfig
+                .getKeySpace(), aggTableConfig.getName());
 
+        PrimaryKey aggPrimaryKey = ViewMaintenanceUtilities.getPrimaryKeyFromTableConfigWithoutValue(
+                aggTableConfig.getKeySpace(), aggTableConfig.getName());
+
+        PrimaryKey resultTablePrimaryKey = ViewMaintenanceUtilities.getPrimaryKeyFromTableConfigWithoutValue(
+                operationViewTables.get(0).getKeySpace(), operationViewTables.get(0).getName());
+
+        Map<String, ColumnDefinition> resultViewTableDesc = ViewMaintenanceUtilities.getTableDefinitition(operationViewTables
+                .get(0).getKeySpace(), operationViewTables.get(0).getName());
+
+        for ( Map.Entry<String, ColumnDefinition> aggTableEntry : aggTableDesc.entrySet() ) {
+            String derivedColumnName = aggTableEntry.getKey().substring(aggTableEntry.getKey().indexOf("_") + 1);
+            if ( aggTableEntry.getValue().isPartitionKey() ) {
+                if ( aggPrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+                    int value = deltaTableRecord.getInt(derivedColumnName + DeltaViewTrigger.CURRENT);
+                    aggPrimaryKey.setColumnValueInString(value + "");
+                } else if ( aggPrimaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
+                    String value = deltaTableRecord.getString(derivedColumnName + DeltaViewTrigger.CURRENT);
+                    aggPrimaryKey.setColumnValueInString(value);
+                }
+                break;
+            }
+        }
+
+        logger.debug("#### aggPrimaryKey :: " + aggPrimaryKey);
+
+        Row recordTobeDeleted = ViewMaintenanceUtilities.getExistingRecordIfExists(aggPrimaryKey, aggTableConfig);
+        logger.debug("### Delete from result view for primary key :: " + resultTablePrimaryKey);
+
+
+        if ( recordTobeDeleted == null ) {
+            deleteFromResultView(resultTablePrimaryKey);
+        } else {
+            userDataResultTable = new HashMap<>();
+            // Format::
+            // Key: Name of the column
+            // Value : CassandraInternalType, ValueInString, isPrimaryKeyForReverseJoinTable
+            for ( Map.Entry<String, ColumnDefinition> resultTableEntry : resultViewTableDesc.entrySet() ) {
+                curFunctionTargetColumnData = new ArrayList<>();
+                String javaDataType = ViewMaintenanceUtilities.getJavaTypeFromCassandraType(resultTableEntry.getValue().type
+                        .toString());
+                curFunctionTargetColumnData.add(resultTableEntry.getValue().type.toString());
+
+                if ( resultTableEntry.getValue().isPartitionKey() ) {
+                    if ( javaDataType.equalsIgnoreCase("Integer") ) {
+                        curFunctionTargetColumnData.add(recordTobeDeleted.getInt(triggerRequest.getBaseTableName()
+                                + "_" + resultTableEntry.getKey()) + "");
+
+                    } else if ( javaDataType.equalsIgnoreCase("String") ) {
+                        curFunctionTargetColumnData.add(recordTobeDeleted.getString(triggerRequest.getBaseTableName()
+                                + "_" + resultTableEntry.getKey()));
+                    }
+                    curFunctionTargetColumnData.add("true");
+                } else {
+                    if ( javaDataType.equalsIgnoreCase("Integer") ) {
+                        curFunctionTargetColumnData.add(recordTobeDeleted.getInt(resultTableEntry.getKey()) + "");
+
+                    } else if ( javaDataType.equalsIgnoreCase("String") ) {
+                        curFunctionTargetColumnData.add(recordTobeDeleted.getString(resultTableEntry.getKey()));
+                    }
+                    curFunctionTargetColumnData.add("false");
+                }
+                userDataResultTable.put(resultTableEntry.getKey(), curFunctionTargetColumnData);
+            }
+
+            logger.debug("##### aggDeleteTrigger :: userDataResultTable :: " + userDataResultTable);
+            aggActualInsertProcess(userDataResultTable);
+        }
     }
 
     public void preaggDeleteTrigger(TriggerRequest triggerRequest) {
