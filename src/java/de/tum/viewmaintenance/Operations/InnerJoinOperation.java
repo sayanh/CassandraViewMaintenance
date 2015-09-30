@@ -8,6 +8,7 @@ import com.google.gson.internal.LinkedTreeMap;
 import de.tum.viewmaintenance.client.CassandraClientUtilities;
 import de.tum.viewmaintenance.config.PrimaryKey;
 import de.tum.viewmaintenance.config.ViewMaintenanceUtilities;
+import de.tum.viewmaintenance.trigger.DeltaViewTrigger;
 import de.tum.viewmaintenance.trigger.TriggerRequest;
 import de.tum.viewmaintenance.view_table_structure.Column;
 import de.tum.viewmaintenance.view_table_structure.Table;
@@ -349,7 +350,7 @@ public class InnerJoinOperation extends GenericOperation {
                     }
 
                 } else if ( column.getDataType().equalsIgnoreCase("list<text>") ||
-                        column.getDataType().equalsIgnoreCase("list <text>")) {
+                        column.getDataType().equalsIgnoreCase("list <text>") ) {
                     // For the actual primary key of datatype String
                     List<String> actualPKListInReverseJoinView = existingReverseJoinRecord.getList(column.getName(), String.class);
                     logger.debug("#### Checking : actualPrimaryKeyCol(list) in ReverseJoin Table : " + actualPKListInReverseJoinView);
@@ -362,7 +363,7 @@ public class InnerJoinOperation extends GenericOperation {
                     }
                 } else {
                     if ( column.getDataType().equalsIgnoreCase("map <int,text>") ||
-                            column.getDataType().equalsIgnoreCase("map <int, text>")) {
+                            column.getDataType().equalsIgnoreCase("map <int, text>") ) {
                         Map<Integer, String> reverseJoinMap = existingReverseJoinRecord.getMap(column.getName(),
                                 Integer.class, String.class);
                         if ( reverseJoinMap == null || reverseJoinMap.isEmpty() ) {
@@ -373,7 +374,7 @@ public class InnerJoinOperation extends GenericOperation {
                             objects.add(existingReverseJoinRecord.getMap(column.getName(), Integer.class, String.class));
                         }
                     } else if ( column.getDataType().equalsIgnoreCase("map <int,int>") ||
-                            column.getDataType().equalsIgnoreCase("map <int, int>")) {
+                            column.getDataType().equalsIgnoreCase("map <int, int>") ) {
                         Map<Integer, Integer> reverseJoinMap = existingReverseJoinRecord.getMap(column.getName(),
                                 Integer.class, Integer.class);
 //                        logger.debug("#### Checking : reverseJoinMap : " + reverseJoinMap);
@@ -458,7 +459,63 @@ public class InnerJoinOperation extends GenericOperation {
         this.deltaTableRecord = triggerRequest.getCurrentRecordInDeltaView();
         logger.debug("##### Delta table record {}", this.deltaTableRecord);
         logger.debug("##### Input tables structure :: {}", this.inputViewTables);
-//        delete
+
+        PrimaryKey innerJoinPrimaryKey = ViewMaintenanceUtilities.getPrimaryKeyFromTableConfigWithoutValue(operationViewTables
+                .get(0).getKeySpace(), operationViewTables.get(0).getName());
+
+        if ( innerJoinPrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+            innerJoinPrimaryKey.setColumnValueInString(deltaTableRecord.getInt(innerJoinPrimaryKey.getColumnName() +
+                    DeltaViewTrigger.CURRENT) + "");
+        } else if ( innerJoinPrimaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
+            innerJoinPrimaryKey.setColumnValueInString(deltaTableRecord.getString(innerJoinPrimaryKey.getColumnName() +
+                    DeltaViewTrigger.CURRENT));
+        }
+
+        logger.debug("##### Inner join primary key :: " + innerJoinPrimaryKey);
+
+        List<Row> existingRowReverseJoinTable = getExistingRecordIfExistsInReverseJoinViewTable(innerJoinPrimaryKey,
+                inputViewTables.get(0));
+
+        logger.debug("#### Existing record from reverse join table :: " + existingRowReverseJoinTable);
+
+
+        if ( existingRowReverseJoinTable != null ) {
+
+            InnerJoinEligibilityCheck innerJoinEligibilityCheck = checkAndAssignObjectsInnerJoinQuery(existingRowReverseJoinTable);
+            if (innerJoinEligibilityCheck.isInsertToInnerJoinEligible()) {
+                List<String> columnNamesOldJoinKey = innerJoinEligibilityCheck.getColumnNames();
+
+                List<Object> objectsOldJoinKey = innerJoinEligibilityCheck.getObjects();
+
+                Statement insertIntoInnerJoinOldJoinKeyDataQuery = QueryBuilder.insertInto(operationViewTables.get(0).getKeySpace(),
+                        operationViewTables.get(0).getName()).values(columnNamesOldJoinKey.toArray(new String
+                        [columnNamesOldJoinKey.size()]), objectsOldJoinKey.toArray());
+
+                logger.debug("##### insertIntoInnerJoinOldJoinKeyDataQuery :: " + insertIntoInnerJoinOldJoinKeyDataQuery);
+
+                CassandraClientUtilities.commandExecution("localhost", insertIntoInnerJoinOldJoinKeyDataQuery);
+            } else {
+                Row existingRowInnerJoinTable = ViewMaintenanceUtilities.getExistingRecordIfExists(innerJoinPrimaryKey,
+                        operationViewTables.get(0));
+
+                logger.debug("#### Existing inner join record which does not qualify to be in inner join :: " + existingRowInnerJoinTable);
+
+                if ( existingRowInnerJoinTable != null ) {
+                    deleteInnerJoinTable(innerJoinPrimaryKey);
+                }
+            }
+
+        } else {
+            Row existingRowInnerJoinTable = ViewMaintenanceUtilities.getExistingRecordIfExists(innerJoinPrimaryKey,
+                    operationViewTables.get(0));
+
+            logger.debug("#### Existing inner join record which is not there in Reverse join :: " + existingRowInnerJoinTable);
+
+            if ( existingRowInnerJoinTable != null ) {
+                deleteInnerJoinTable(innerJoinPrimaryKey);
+            }
+        }
+
         return true;
     }
 
