@@ -451,7 +451,15 @@ public class InnerJoinOperation extends GenericOperation {
 
     @Override
     public boolean deleteTrigger(TriggerRequest triggerRequest) {
-        return false;
+
+        logger.debug("##### Entering delete trigger for InnerJoin Operations!!! ");
+        logger.debug("##### Received elements #####");
+        logger.debug("##### Table structure involved: {}", this.operationViewTables);
+        this.deltaTableRecord = triggerRequest.getCurrentRecordInDeltaView();
+        logger.debug("##### Delta table record {}", this.deltaTableRecord);
+        logger.debug("##### Input tables structure :: {}", this.inputViewTables);
+//        delete
+        return true;
     }
 
     @Override

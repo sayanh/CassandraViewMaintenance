@@ -387,7 +387,7 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess {
                         resultTableCreated);
             }
 
-            operationQueue.add(resultViewOperation);
+//            operationQueue.add(resultViewOperation);
         }
 
         logger.debug("### Operation Queue structure :: " + operationQueue);

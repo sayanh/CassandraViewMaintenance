@@ -41,6 +41,7 @@ public class ReverseJoinOperation extends GenericOperation {
     private Table viewConfig;
     private Expression whereExpression;
     private List<Join> joins;
+    final static String WHERE_TABLE_INDENTIFIER = "_where_";
 
     public void setWhereExpression(Expression whereExpression) {
         this.whereExpression = whereExpression;
@@ -93,15 +94,14 @@ public class ReverseJoinOperation extends GenericOperation {
         logger.debug("##### Table structure involved: {}", this.operationViewTables);
         this.deltaTableRecord = triggerRequest.getCurrentRecordInDeltaView();
         logger.debug("##### Delta table record {}", this.deltaTableRecord);
+        logger.debug("##### Input tables structure :: {}", this.inputViewTables);
+
         LinkedTreeMap dataJson = triggerRequest.getDataJson();
         Set keySet = dataJson.keySet();
         Iterator dataIter = keySet.iterator();
         EqualsTo onExpresssionJoin = (EqualsTo) joins.get(0).getOnExpression();
         List<String> tablesInvolved = viewConfig.getRefBaseTables();
-        Statement existingRecordQuery = null;
         String primaryColName = ((Column) onExpresssionJoin.getLeftExpression()).getColumnName(); //Primary col of the reverse view table
-//        String leftTableName = ((Column) onExpresssionJoin.getLeftExpression()).getTable().getName();
-//        String rightTableName = ((Column) onExpresssionJoin.getRightExpression()).getTable().getName();
         Map<String, Map<String, ColumnDefinition>> tableDesc = new HashMap<>();
         String primaryValue = "";
         PrimaryKey actualPrimaryKey = new PrimaryKey();
@@ -298,13 +298,13 @@ public class ReverseJoinOperation extends GenericOperation {
         return false;
     }
 
-    private void deleteFromReverseViewTable(PrimaryKey oldReverseJoinPrimaryKey, PrimaryKey actualPrimaryKey,
+    private void deleteFromReverseViewTable(PrimaryKey reverseJoinPrimaryKey, PrimaryKey actualPrimaryKey,
                                             TriggerRequest triggerRequest, Map<String, List<String>> columnMap) {
 
         logger.debug("#### Checking .. inside deleteFromReverseViewTable ...");
-        logger.debug("#### Checking .. oldReverseJoinPrimaryKey = " + oldReverseJoinPrimaryKey);
+        logger.debug("#### Checking .. reverseJoinPrimaryKey = " + reverseJoinPrimaryKey);
         logger.debug("#### Checking .. actualPrimaryKey = " + actualPrimaryKey);
-        Row existingRecord = getExistingRecordIfExistsInReverseJoinViewTable(oldReverseJoinPrimaryKey);
+        Row existingRecord = getExistingRecordIfExistsInReverseJoinViewTable(reverseJoinPrimaryKey);
         Update.Assignments assignments = QueryBuilder.update(operationViewTables.get(0).getKeySpace(),
                 operationViewTables.get(0).getName()).with();
         Clause whereClause = null;
@@ -317,13 +317,13 @@ public class ReverseJoinOperation extends GenericOperation {
 
                 logger.debug("#### Checking ... processing columnDefinitionEntry {} #### ", columnDefinitionEntry);
 
-                if ( oldReverseJoinPrimaryKey.getColumnName().equalsIgnoreCase(columnDefinitionEntry.getKey()) ) {
-                    if ( oldReverseJoinPrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
-                        whereClause = QueryBuilder.eq(oldReverseJoinPrimaryKey.getColumnName(),
-                                Integer.parseInt(oldReverseJoinPrimaryKey.getColumnValueInString()));
+                if ( reverseJoinPrimaryKey.getColumnName().equalsIgnoreCase(columnDefinitionEntry.getKey()) ) {
+                    if ( reverseJoinPrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+                        whereClause = QueryBuilder.eq(reverseJoinPrimaryKey.getColumnName(),
+                                Integer.parseInt(reverseJoinPrimaryKey.getColumnValueInString()));
                     } else if ( actualPrimaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
-                        whereClause = QueryBuilder.eq(oldReverseJoinPrimaryKey.getColumnName(),
-                                oldReverseJoinPrimaryKey.getColumnValueInString());
+                        whereClause = QueryBuilder.eq(reverseJoinPrimaryKey.getColumnName(),
+                                reverseJoinPrimaryKey.getColumnValueInString());
                     }
 
                 } else if ( columnDefinitionEntry.getKey().equalsIgnoreCase(triggerRequest.getBaseTableName()
@@ -592,8 +592,6 @@ public class ReverseJoinOperation extends GenericOperation {
         Clause whereClause = null;
 
         for ( Map.Entry<String, List<String>> column : columnMap.entrySet() ) {
-//            logger.debug("#### Column executing ...key:: " + column.getKey());
-//            logger.debug("#### Column executing ...value:: " + column.getValue());
 
             if ( column.getKey().equalsIgnoreCase(reverseJoinViewTablePK.getColumnName()) ) {
 
@@ -603,7 +601,6 @@ public class ReverseJoinOperation extends GenericOperation {
                     whereClause = QueryBuilder.eq(column.getKey(), column.getValue().get(1));
                 }
 
-//                logger.debug("#### Checking .... whereClause: " + whereClause);
             } else if ( column.getKey().equalsIgnoreCase(triggerRequest.getBaseTableName() + "_"
                     + actualPrimaryKey.getColumnName()) ) {
                 String javaDataType = ViewMaintenanceUtilities.getJavaTypeFromCassandraType(column.getValue().get(0));
@@ -702,7 +699,66 @@ public class ReverseJoinOperation extends GenericOperation {
 
     @Override
     public boolean deleteTrigger(TriggerRequest triggerRequest) {
-        return false;
+
+        logger.debug("##### Entering delete trigger for ReverseJoin Operations!!! ");
+        logger.debug("##### Received elements #####");
+        logger.debug("##### Table structure involved: {}", this.operationViewTables);
+        this.deltaTableRecord = triggerRequest.getCurrentRecordInDeltaView();
+        logger.debug("##### Delta table record {}", this.deltaTableRecord);
+        logger.debug("##### Input tables structure :: {}", this.inputViewTables);
+
+        PrimaryKey reverseJoinPrimaryKey = ViewMaintenanceUtilities.getPrimaryKeyFromTableConfigWithoutValue(
+                operationViewTables.get(0).getKeySpace(), operationViewTables.get(0).getName());
+
+        if ( reverseJoinPrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+            reverseJoinPrimaryKey.setColumnValueInString(deltaTableRecord.getInt(reverseJoinPrimaryKey.getColumnName()
+                    + DeltaViewTrigger.CURRENT) + "");
+        } else if ( reverseJoinPrimaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
+            reverseJoinPrimaryKey.setColumnValueInString(deltaTableRecord.getString(reverseJoinPrimaryKey.getColumnName()
+                    + DeltaViewTrigger.CURRENT));
+        }
+
+        logger.debug("#### reverseJoinPrimaryKey :: " + reverseJoinPrimaryKey);
+
+        Row existingRowReverseJoinView = ViewMaintenanceUtilities.getExistingRecordIfExists(reverseJoinPrimaryKey,
+                operationViewTables.get(0));
+
+        logger.debug("#### ExistingRowReverseJoinView :: " + existingRowReverseJoinView);
+
+
+        if ( inputViewTables.get(0).getName().contains(WHERE_TABLE_INDENTIFIER) ) {
+            Table whereTableConfig = ViewMaintenanceUtilities.getConcernedWhereTableFromWhereTablesList(triggerRequest,
+                    inputViewTables);
+
+            logger.debug("#### Checking wheretableconfig :: " + whereTableConfig);
+
+            if ( whereTableConfig != null ) {
+                PrimaryKey whereTablePrimaryKey = ViewMaintenanceUtilities.getPrimaryKeyFromTableConfigWithoutValue(whereTableConfig
+                        .getKeySpace(), whereTableConfig.getName());
+
+                String[] whereStringArr = triggerRequest.getWhereString().split("=");
+                logger.debug("#### Checking :: whereStringArr :: " + whereStringArr);
+                logger.debug("#### Checking :: whereStringArr length:: " + whereStringArr.length);
+                if ( whereTablePrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+                    whereTablePrimaryKey.setColumnValueInString(whereStringArr[1].trim());
+                } else if ( whereTablePrimaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
+                    whereTablePrimaryKey.setColumnValueInString(whereStringArr[whereStringArr.length].trim()
+                            .replaceAll("'", ""));
+                }
+
+                logger.debug("#### whereTablePrimaryKey :: " + whereTablePrimaryKey);
+
+                if ( existingRowReverseJoinView != null ) {
+
+                    Map<String, List<String>> reverseColumnMap = getCurrReverseJoinColumnMapFromDelta();
+                    logger.debug("#### ReverseJoin ColumnMap :: " + reverseColumnMap);
+
+                    deleteFromReverseViewTable(reverseJoinPrimaryKey, whereTablePrimaryKey,
+                            triggerRequest, reverseColumnMap);
+                }
+            }
+        }
+        return true;
     }
 
     public static ReverseJoinOperation getInstance(List<Table> inputViewTable,
@@ -719,5 +775,36 @@ public class ReverseJoinOperation extends GenericOperation {
                 ",\n inputViewTable=" + inputViewTables +
                 ",\n operationViewTables=" + operationViewTables +
                 '}';
+    }
+
+
+    private Map<String, List<String>> getCurrReverseJoinColumnMapFromDelta() {
+        Map<String, List<String>> columnMap = new HashMap<>();
+        // Format::
+        // Key: Name of the column
+        // Value : CassandraInternalType, ValueInString(not mandatory), isPrimaryKeyForReverseJoinTable(not mandatory)
+        Map<String, ColumnDefinition> reverseJoinDesc = ViewMaintenanceUtilities.getTableDefinitition(
+                operationViewTables.get(0).getKeySpace(), operationViewTables.get(0).getName());
+
+        for ( Map.Entry<String, ColumnDefinition> reverseJoinColEntry : reverseJoinDesc.entrySet() ) {
+            String javaDataType = ViewMaintenanceUtilities.getJavaTypeFromCassandraType(reverseJoinColEntry
+                    .getValue().type.toString());
+            List<String> tempList = new ArrayList<>();
+            tempList.add(reverseJoinColEntry.getValue().type.toString());
+            if ( reverseJoinColEntry.getValue().isPartitionKey() ) {
+                if ( javaDataType.equalsIgnoreCase("Integer") ) {
+                    tempList.add(deltaTableRecord.getInt(reverseJoinColEntry.getValue().name.toString() +
+                            DeltaViewTrigger.CURRENT) + "");
+                } else if ( javaDataType.equalsIgnoreCase("String") ) {
+                    tempList.add(deltaTableRecord.getString(reverseJoinColEntry.getValue().name.toString() +
+                            DeltaViewTrigger.CURRENT));
+                }
+
+                tempList.add("true");
+            }
+            columnMap.put(reverseJoinColEntry.getKey(), tempList);
+
+        }
+        return columnMap;
     }
 }

@@ -982,6 +982,11 @@ public class PreAggOperation extends GenericOperation {
 
             logger.debug("#### deleteTrigger :: entry point inner join table case");
 
+
+
+
+
+
         } else {
             logger.debug("#### deleteTrigger :: only agg case");
             int subtractionAmount = deltaTableRecord.getInt(targetColName + DeltaViewTrigger.CURRENT);
