@@ -317,6 +317,58 @@ public final class ViewMaintenanceUtilities {
     }
 
 
+    public static boolean isDataPresentInInnerJoinRecord(PrimaryKey baseTablePK, Row existingRecordInInnerJoin, String baseTableName) {
+
+        boolean isPresent = false;
+        if ( baseTablePK.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+            try {
+                List<Integer> listInnerJoinRecord = existingRecordInInnerJoin.getList(baseTablePK.getColumnName(),
+                        Integer.class);
+
+                if ( listInnerJoinRecord != null && listInnerJoinRecord.size() > 0 && listInnerJoinRecord.contains(
+                        Integer.parseInt(baseTablePK.getColumnValueInString())) ) {
+                    isPresent = true;
+                }
+            } catch ( IllegalArgumentException ille ) {
+                List<Integer> listInnerJoinRecord = existingRecordInInnerJoin.getList(baseTableName + "_" + baseTablePK.getColumnName(),
+                        Integer.class);
+
+                if ( listInnerJoinRecord != null && listInnerJoinRecord.size() > 0 && listInnerJoinRecord.contains(
+                        Integer.parseInt(baseTablePK.getColumnValueInString())) ) {
+                    isPresent = true;
+                }
+
+            }
+        } else if ( baseTablePK.getColumnJavaType().equalsIgnoreCase("String") ) {
+            try {
+                List<String> listInnerJoinRecord = existingRecordInInnerJoin.getList(baseTablePK.getColumnName(),
+                        String.class);
+
+                if ( listInnerJoinRecord != null && listInnerJoinRecord.size() > 0 && listInnerJoinRecord.contains(
+                        baseTablePK.getColumnValueInString()) ) {
+                    isPresent = true;
+                }
+            } catch ( IllegalArgumentException ille ) {
+                List<String> listInnerJoinRecord = existingRecordInInnerJoin.getList(baseTableName + "_" +
+                        baseTablePK.getColumnName(), String.class);
+
+                if ( listInnerJoinRecord != null && listInnerJoinRecord.size() > 0 && listInnerJoinRecord.contains(
+                        baseTablePK.getColumnValueInString()) ) {
+                    isPresent = true;
+                }
+
+            }
+        }
+
+        logger.debug("####### existingRecordInInnerJoin" + existingRecordInInnerJoin);
+        logger.debug("####### baseTablePK :: " + baseTablePK);
+        logger.debug("####### isDataPresentInInnerJoinRecord :: " + isPresent);
+
+
+        return isPresent;
+    }
+
+
     public static String checkForChangeInAggregationKeyInDeltaView(List<String> aggregationKeyData, Row deltaTableRecord) {
         logger.debug("#### Checking --- aggregationKeyData :: " + aggregationKeyData);
         logger.debug("#### Checking --- deltaTableRecord :: " + deltaTableRecord);

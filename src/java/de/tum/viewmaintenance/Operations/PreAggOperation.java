@@ -342,7 +342,7 @@ public class PreAggOperation extends GenericOperation {
 
 
         if ( utilityProcessor != null ) {
-            logger.debug("#### Case:: DataJson table is the same the table where aggregate operation needs to be performed!");
+            logger.debug("#### Case:: DataJson table is same as the table where aggregate operation needs to be performed!");
             List<String> userData = utilityProcessor.userData; // For target column: FunctionName, Value, TargetColumnName
             List<String> aggregationKeyData = utilityProcessor.aggregationKeyData; // For curr aggregation key: columnName, Cass Type
             PrimaryKey preAggTablePK = utilityProcessor.preAggTablePK;
@@ -353,6 +353,8 @@ public class PreAggOperation extends GenericOperation {
 
             Row existingRecordInInnerJoin = ViewMaintenanceUtilities.getExistingRecordIfExists(innerJoinPrimaryKeyCur,
                     innerJoinTableConfig);
+
+            logger.debug("#### Checking :: existingRecordInInnerJoin :: " + existingRecordInInnerJoin);
 
             if ( statusCurJoinKey.equalsIgnoreCase("new") ) {
 
@@ -370,12 +372,16 @@ public class PreAggOperation extends GenericOperation {
 
             } else if ( statusCurJoinKey.equalsIgnoreCase("changed") || statusCurJoinKey.equalsIgnoreCase("unchanged") ) {
                 logger.debug("#### Case:: joinkey changed / unchanged  #####");
+
                 PrimaryKey oldInnerJoinPrimaryKey = ViewMaintenanceUtilities.createOldJoinKeyfromNewValue(innerJoinPrimaryKeyCur,
                         deltaTableRecord);
 
+                boolean curDataPresentInInnerJoin = false;
 
                 Row oldInnerJoinRecord = ViewMaintenanceUtilities.getExistingRecordIfExists(oldInnerJoinPrimaryKey,
                         innerJoinTableConfig);
+
+                logger.debug("#### oldInnerJoinRecord :: " + oldInnerJoinRecord);
 
                 if ( oldInnerJoinRecord == null ) {
 
@@ -401,6 +407,8 @@ public class PreAggOperation extends GenericOperation {
                                 triggerRequest.getBaseTableName(), preAggTablePK);
                     }
 
+                } else if ( oldInnerJoinRecord != null && statusCurJoinKey.equalsIgnoreCase("unchanged") ) {
+
                 }
 
                 if ( existingRecordInInnerJoin != null ) {
@@ -408,12 +416,25 @@ public class PreAggOperation extends GenericOperation {
                     // Intelligent deletion of the old agg value
                     // This is true for changed and unchanged status of the aggregate keys
 
+                    curDataPresentInInnerJoin = ViewMaintenanceUtilities.
+                            isDataPresentInInnerJoinRecord(baseTablePK, existingRecordInInnerJoin, triggerRequest
+                                    .getBaseTableName());
+
+                    if (curDataPresentInInnerJoin) {
+
+                        intelligentDeletionPreAggViewTable(userData, aggregationKeyData, ViewMaintenanceUtilities
+                                .getKeyspaceAndTableNameInAnArray(triggerRequest.getBaseTableKeySpace() + "." +
+                                        triggerRequest.getBaseTableName()));
+
+                        intelligentEntryPreAggViewTable(existingRecordPreAggTable, preAggTablePK, userData);
+                    }
+
+                } else if ( oldInnerJoinRecord != null && existingRecordInInnerJoin == null ) {
+
+                    logger.debug("### Case:: when old is still there but the new join key is not !!! ");
                     intelligentDeletionPreAggViewTable(userData, aggregationKeyData, ViewMaintenanceUtilities
                             .getKeyspaceAndTableNameInAnArray(triggerRequest.getBaseTableKeySpace() + "." +
                                     triggerRequest.getBaseTableName()));
-
-                    intelligentEntryPreAggViewTable(existingRecordPreAggTable, preAggTablePK, userData);
-
                 }
 
             }
@@ -463,6 +484,8 @@ public class PreAggOperation extends GenericOperation {
         }
 
     }
+
+
 
     /**
      * When input happens for other table(say Y) on which aggregate needs not be calculated then view maintenance
@@ -930,13 +953,24 @@ public class PreAggOperation extends GenericOperation {
                 preAggTableConfig.getName());
 
 
+        PrimaryKey actualPrimaryKey = ViewMaintenanceUtilities.getPrimaryKeyFromTableConfigWithoutValue(triggerRequest
+                .getBaseTableKeySpace(), triggerRequest.getBaseTableName());
+
+        if ( actualPrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+            actualPrimaryKey.setColumnValueInString(deltaTableRecord.getInt(actualPrimaryKey.getColumnName()) + "");
+        } else if ( actualPrimaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
+            actualPrimaryKey.setColumnValueInString(deltaTableRecord.getString(actualPrimaryKey.getColumnName()));
+        }
+
         PrimaryKey preAggPrimaryKey = null;
         String targetColName = "";
         String functionName = "";
+        String actualBaseTableName = "";
 
         for ( Map.Entry<String, ColumnDefinition> preAggColEntry : preAggTableDesc.entrySet() ) {
             if ( preAggColEntry.getValue().isPartitionKey() ) {
                 String derivedColumnName = preAggColEntry.getKey().substring(preAggColEntry.getKey().indexOf("_") + 1);
+                actualBaseTableName = preAggColEntry.getKey().substring(0, preAggColEntry.getKey().indexOf("_"));
                 String cql3Type = ViewMaintenanceUtilities.getCQL3DataTypeFromCassandraInternalDataType(preAggColEntry
                         .getValue().type.toString());
                 if ( cql3Type.equalsIgnoreCase("text") ) {
@@ -969,22 +1003,84 @@ public class PreAggOperation extends GenericOperation {
 
             if ( didCurrentValueSatisfyWhereClause ) {
 
-                if (functionName.equalsIgnoreCase("sum")) {
-                    deleteCurFromSumPreAggView(preAggPrimaryKey, functionName + "_" + targetColName );
-                } else if (functionName.equalsIgnoreCase("count")) {
+                if ( functionName.equalsIgnoreCase("sum") ) {
+                    deleteCurFromSumPreAggView(preAggPrimaryKey, functionName + "_" + targetColName);
+                } else if ( functionName.equalsIgnoreCase("count") ) {
                     deleteFromCountPreAggView(preAggPrimaryKey, functionName + "_" + targetColName);
                 }
-
-
             }
 
         } else if ( inputViewTables != null && inputViewTables.get(0).getName().contains(INNER_JOIN_TABLE_INDENTIFIER) ) {
 
             logger.debug("#### deleteTrigger :: entry point inner join table case");
 
+            Table innerJoinTableConfig = inputViewTables.get(0);
+
+            Map<String, ColumnDefinition> innerJoinTableDesc = ViewMaintenanceUtilities.getTableDefinitition(innerJoinTableConfig.getKeySpace(),
+                    innerJoinTableConfig.getName());
+
+            Table cacheViewConfig = new Table();
+            cacheViewConfig.setName(innerJoinTableConfig.getName().replace("inner", "innercache"));
+            cacheViewConfig.setKeySpace(innerJoinTableConfig.getKeySpace());
+            cacheViewConfig.setColumns(innerJoinTableConfig.getColumns());
+            Row existingRecordInCache = null;
+            Row existingRecordInInnerJoin = null;
+
+            PrimaryKey innerJoinPrimaryKey = ViewMaintenanceUtilities.getPrimaryKeyFromTableConfigWithoutValue(
+                    innerJoinTableConfig.getKeySpace(), innerJoinTableConfig.getName());
+
+            if ( innerJoinPrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+                innerJoinPrimaryKey.setColumnValueInString(deltaTableRecord.getInt(innerJoinPrimaryKey.getColumnName()
+                        + DeltaViewTrigger.CURRENT) + "");
+            } else if ( innerJoinPrimaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
+                innerJoinPrimaryKey.setColumnValueInString(deltaTableRecord.getString(innerJoinPrimaryKey.getColumnName()
+                        + DeltaViewTrigger.CURRENT));
+            }
+
+            existingRecordInCache = ViewMaintenanceUtilities.getExistingRecordIfExists(innerJoinPrimaryKey,
+                    cacheViewConfig);
 
 
+            logger.debug("#### exisitingRecordInCache :: " + existingRecordInCache);
 
+            if ( actualBaseTableName.equalsIgnoreCase(triggerRequest.getBaseTableName()) ) {
+
+                logger.debug("#### Update request came for concerned table !!!");
+
+                if ( existingRecordInCache != null ) {
+
+                    deleteTriggerWhenInnerJoinCacheIsPresent(actualPrimaryKey, preAggPrimaryKey,
+                            existingRecordInCache, actualBaseTableName,
+                            targetColName, functionName);
+
+                    // Delete from inner join cache
+                } else {
+                    existingRecordInInnerJoin = ViewMaintenanceUtilities.getExistingRecordIfExists(innerJoinPrimaryKey,
+                            innerJoinTableConfig);
+
+                    logger.debug("#### existingRecordInInnerJoin :: " + existingRecordInInnerJoin);
+
+                    if ( existingRecordInInnerJoin != null ) {
+
+                        if ( functionName.equalsIgnoreCase("sum") ) {
+                            deleteCurFromSumPreAggView(preAggPrimaryKey, functionName + "_" + targetColName);
+                        } else if ( functionName.equalsIgnoreCase("count") ) {
+                            deleteFromCountPreAggView(preAggPrimaryKey, functionName + "_" + targetColName);
+                        }
+                    }
+
+                }
+            } else {
+
+                logger.debug("#### Update request came for other table!!");
+
+                if ( existingRecordInCache != null ) {
+                    deleteTriggerWhenInnerJoinCacheIsPresent(actualPrimaryKey, preAggPrimaryKey,
+                            existingRecordInCache, actualBaseTableName,
+                            targetColName, functionName);
+
+                }
+            }
 
 
         } else {
@@ -1044,6 +1140,119 @@ public class PreAggOperation extends GenericOperation {
 
     }
 
+    private void deleteTriggerWhenInnerJoinCacheIsPresent(PrimaryKey actualPrimaryKey, PrimaryKey preAggPrimaryKey,
+                                                          Row existingRecordInCache, String actualBaseTableName,
+                                                          String targetColName, String functionName) {
+
+        // Computing Agg Key
+        Map<?, ?> aggKeyMap = null;
+
+        if ( actualPrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+            if ( preAggPrimaryKey.getColumnJavaType().equals("Integer") ) {
+                try {
+                    aggKeyMap = existingRecordInCache.getMap(preAggPrimaryKey.getColumnName(), Integer.class,
+                            Integer.class);
+                } catch ( IllegalArgumentException ille ) {
+                    logger.debug("#### Exception!! " + ille.getMessage());
+                    aggKeyMap = existingRecordInCache.getMap(actualBaseTableName + "_" +
+                            preAggPrimaryKey.getColumnName(), Integer.class, Integer.class);
+                }
+            } else if ( preAggPrimaryKey.getColumnJavaType().equals("String") ) {
+                try {
+                    aggKeyMap = existingRecordInCache.getMap(preAggPrimaryKey.getColumnName(), Integer.class,
+                            String.class);
+                } catch ( IllegalArgumentException ille ) {
+                    logger.debug("#### Exception!! " + ille.getMessage());
+                    aggKeyMap = existingRecordInCache.getMap(actualBaseTableName + "_" +
+                            preAggPrimaryKey.getColumnName(), Integer.class, String.class);
+                }
+            }
+        } else if ( actualPrimaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
+            if ( preAggPrimaryKey.getColumnJavaType().equals("Integer") ) {
+                try {
+                    aggKeyMap = existingRecordInCache.getMap(preAggPrimaryKey.getColumnName(), String.class,
+                            Integer.class);
+                } catch ( IllegalArgumentException ille ) {
+                    logger.debug("#### Exception!! " + ille.getMessage());
+                    aggKeyMap = existingRecordInCache.getMap(actualBaseTableName + "_" +
+                            preAggPrimaryKey.getColumnName(), String.class, Integer.class);
+                }
+            } else if ( preAggPrimaryKey.getColumnJavaType().equals("String") ) {
+                try {
+                    aggKeyMap = existingRecordInCache.getMap(preAggPrimaryKey.getColumnName(), String.class,
+                            String.class);
+                } catch ( IllegalArgumentException ille ) {
+                    logger.debug("#### Exception!! " + ille.getMessage());
+                    aggKeyMap = existingRecordInCache.getMap(actualBaseTableName + "_" +
+                            preAggPrimaryKey.getColumnName(), String.class, String.class);
+                }
+            }
+        }
+
+
+        // Computing AggVal map
+        Map<?, Integer> aggValMap = null;
+
+        if ( actualPrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+            try {
+                aggValMap = existingRecordInCache.getMap(targetColName, Integer.class,
+                        Integer.class);
+            } catch ( IllegalArgumentException ille ) {
+                logger.debug("#### Exception!! " + ille.getMessage());
+                aggValMap = existingRecordInCache.getMap(actualBaseTableName + "_" +
+                        targetColName, Integer.class, Integer.class);
+            }
+        } else if ( actualPrimaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
+            try {
+                aggValMap = existingRecordInCache.getMap(targetColName, String.class,
+                        Integer.class);
+            } catch ( IllegalArgumentException ille ) {
+                logger.debug("#### Exception!! " + ille.getMessage());
+                aggValMap = existingRecordInCache.getMap(actualBaseTableName + "_" +
+                        targetColName, String.class, Integer.class);
+            }
+        }
+
+        for ( Map.Entry<?, ?> aggKeyMapEntry : aggKeyMap.entrySet() ) {
+            if ( functionName.equalsIgnoreCase("sum") ) {
+
+                PrimaryKey tempPrimaryKeyPreAgg = null;
+                int value = aggValMap.get(aggKeyMapEntry.getKey());
+                if ( preAggPrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+
+                    tempPrimaryKeyPreAgg = new PrimaryKey(preAggPrimaryKey.getColumnName(),
+                            preAggPrimaryKey.getColumnInternalCassType(), aggKeyMapEntry.getKey() + "");
+
+                } else if ( preAggPrimaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
+
+                    tempPrimaryKeyPreAgg = new PrimaryKey(preAggPrimaryKey.getColumnName(),
+                            preAggPrimaryKey.getColumnInternalCassType(), aggKeyMapEntry.getKey() + "");
+
+                }
+
+                deleteFromSumPreAggView(tempPrimaryKeyPreAgg, targetColName, value);
+
+            } else if ( functionName.equalsIgnoreCase("count") ) {
+                PrimaryKey tempPrimaryKeyPreAgg = null;
+                if ( preAggPrimaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+
+                    tempPrimaryKeyPreAgg = new PrimaryKey(preAggPrimaryKey.getColumnName(),
+                            preAggPrimaryKey.getColumnInternalCassType(), aggKeyMapEntry.getKey() + "");
+
+                } else if ( preAggPrimaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
+
+                    tempPrimaryKeyPreAgg = new PrimaryKey(preAggPrimaryKey.getColumnName(),
+                            preAggPrimaryKey.getColumnInternalCassType(), aggKeyMapEntry.getKey() + "");
+
+                }
+
+                deleteFromCountPreAggView(tempPrimaryKeyPreAgg, targetColName);
+            }
+        }
+
+
+    }
+
 
     private void updateSumPreAggViewOnlyAdding(PrimaryKey preAggTablePK, Row existingRecordPreAggTable, List<String> userData) {
         String modifiedColumnName = userData.get(0) + "_" + userData.get(2);
@@ -1065,7 +1274,7 @@ public class PreAggOperation extends GenericOperation {
 
         int existingVal = existingRecordPreAggTableLatest.get(0).getInt(modifiedColumnName);
 //        int existingVal = existingRecordPreAggTable.getInt(modifiedColumnName);
-        int oldValue = deltaTableRecord.getInt(userData.get(2) + DeltaViewTrigger.LAST);
+//        int oldValue = deltaTableRecord.getInt(userData.get(2) + DeltaViewTrigger.LAST);
         int newValue = 0;
 
         // Getting the status of the aggregate key change
@@ -1199,6 +1408,7 @@ public class PreAggOperation extends GenericOperation {
         }
         int oldAggValue = existingRecordOldAggKey.getInt(targetColName);
         int subtractionAmount = deltaTableRecord.getInt(targetColName.split("_")[1] + DeltaViewTrigger.LAST);
+
         Update.Assignments assignments = QueryBuilder.update(operationViewTables.get(0).getKeySpace(),
                 operationViewTables.get(0).getName()).with(QueryBuilder.set(targetColName,
                 (oldAggValue - subtractionAmount)));
@@ -1267,22 +1477,22 @@ public class PreAggOperation extends GenericOperation {
         CassandraClientUtilities.commandExecution("localhost", updateQuery);
     }
 
-    private void deleteFromCountPreAggView(PrimaryKey oldAggregateKey, String targetColName) {
+    private void deleteFromCountPreAggView(PrimaryKey aggregateKey, String targetColName) {
         Statement deleteCountQuery = null;
 
-        Row existingRecordOldAggKey = ViewMaintenanceUtilities.getExistingRecordIfExists(oldAggregateKey,
+        Row existingRecordOldAggKey = ViewMaintenanceUtilities.getExistingRecordIfExists(aggregateKey,
                 operationViewTables.get(0));
-        logger.debug("### Existing record for OldAggKey :: " + existingRecordOldAggKey);
+        logger.debug("### Existing record for aggKey :: " + existingRecordOldAggKey);
         int oldAggValue = existingRecordOldAggKey.getInt(targetColName);
         Update.Assignments assignments = QueryBuilder.update(operationViewTables.get(0).getKeySpace(),
                 operationViewTables.get(0).getName()).with(QueryBuilder.set(targetColName,
                 (oldAggValue - 1)));
-        if ( oldAggregateKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
-            deleteCountQuery = assignments.where(QueryBuilder.eq(oldAggregateKey.getColumnName(),
-                    Integer.parseInt(oldAggregateKey.getColumnValueInString())));
-        } else if ( oldAggregateKey.getColumnJavaType().equalsIgnoreCase("String") ) {
-            deleteCountQuery = assignments.where(QueryBuilder.eq(oldAggregateKey.getColumnName(),
-                    oldAggregateKey.getColumnValueInString()));
+        if ( aggregateKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+            deleteCountQuery = assignments.where(QueryBuilder.eq(aggregateKey.getColumnName(),
+                    Integer.parseInt(aggregateKey.getColumnValueInString())));
+        } else if ( aggregateKey.getColumnJavaType().equalsIgnoreCase("String") ) {
+            deleteCountQuery = assignments.where(QueryBuilder.eq(aggregateKey.getColumnName(),
+                    aggregateKey.getColumnValueInString()));
         }
 
         logger.debug("### Delete query for sum in preagg View :: " + deleteCountQuery);

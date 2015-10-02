@@ -482,7 +482,7 @@ public class InnerJoinOperation extends GenericOperation {
         if ( existingRowReverseJoinTable != null ) {
 
             InnerJoinEligibilityCheck innerJoinEligibilityCheck = checkAndAssignObjectsInnerJoinQuery(existingRowReverseJoinTable);
-            if (innerJoinEligibilityCheck.isInsertToInnerJoinEligible()) {
+            if ( innerJoinEligibilityCheck.isInsertToInnerJoinEligible() ) {
                 List<String> columnNamesOldJoinKey = innerJoinEligibilityCheck.getColumnNames();
 
                 List<Object> objectsOldJoinKey = innerJoinEligibilityCheck.getObjects();
@@ -501,6 +501,18 @@ public class InnerJoinOperation extends GenericOperation {
                 logger.debug("#### Existing inner join record which does not qualify to be in inner join :: " + existingRowInnerJoinTable);
 
                 if ( existingRowInnerJoinTable != null ) {
+                    Table cacheTable = new Table();
+
+                    cacheTable.setName(operationViewTables.get(0).getName().replaceAll("inner", "innercache"));
+
+                    cacheTable.setKeySpace(operationViewTables.get(0).getKeySpace());
+
+                    cacheTable.setColumns(operationViewTables.get(0).getColumns());
+
+                    logger.debug("#### Cache table config :: " + cacheTable);
+
+                    ViewMaintenanceUtilities.storeJoinRowInCache(existingRowInnerJoinTable, cacheTable);
+
                     deleteInnerJoinTable(innerJoinPrimaryKey);
                 }
             }
@@ -512,6 +524,17 @@ public class InnerJoinOperation extends GenericOperation {
             logger.debug("#### Existing inner join record which is not there in Reverse join :: " + existingRowInnerJoinTable);
 
             if ( existingRowInnerJoinTable != null ) {
+                Table cacheTable = new Table();
+
+                cacheTable.setName(operationViewTables.get(0).getName().replaceAll("inner", "innercache"));
+
+                cacheTable.setKeySpace(operationViewTables.get(0).getKeySpace());
+
+                cacheTable.setColumns(operationViewTables.get(0).getColumns());
+
+                logger.debug("#### Cache table config :: " + cacheTable);
+
+                ViewMaintenanceUtilities.storeJoinRowInCache(existingRowInnerJoinTable, cacheTable);
                 deleteInnerJoinTable(innerJoinPrimaryKey);
             }
         }
