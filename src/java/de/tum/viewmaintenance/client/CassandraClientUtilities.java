@@ -44,6 +44,9 @@ public class CassandraClientUtilities {
     * This method creates a connection to a Cassandra instance and returns the cluster
     */
     public static Cluster getConnection(String ip) {
+        if (ip!=null && !ip.isEmpty() && !ip.equalsIgnoreCase("localhost")) {
+            return getConnectionInstance(ip);
+        }
         Session session = null;
         Cluster cluster = null;
         try {
@@ -71,7 +74,17 @@ public class CassandraClientUtilities {
                     .build();
         }
         return clusterConn;
-    } 
+    }
+
+    public static synchronized Cluster getConnectionInstance(String ip) {
+
+        if ( clusterConn == null ) {
+            return Cluster.builder()
+                    .addContactPoint(ip)
+                    .build();
+        }
+        return clusterConn;
+    }
 
     public static boolean closeConnection(Cluster cluster) {
         try {

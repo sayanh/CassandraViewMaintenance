@@ -4,6 +4,7 @@ import com.datastax.driver.core.Row;
 import com.google.gson.Gson;
 import com.google.gson.internal.LinkedTreeMap;
 import com.google.gson.reflect.TypeToken;
+import de.tum.viewmaintenance.EvaluationLogging.StatsLogging;
 import de.tum.viewmaintenance.trigger.*;
 import de.tum.viewmaintenance.view_table_structure.Table;
 import de.tum.viewmaintenance.view_table_structure.Views;
@@ -54,7 +55,13 @@ public class ViewMaintenanceLogsReader extends Thread {
         int lastOpertationIdProcessed;
         BufferedReader bufferedReader = null;
         Map<String, TriggerProcess> viewCache = new HashMap<>();
+        int numberOfOperationsInvolved = 0;
+        long startTime = System.currentTimeMillis();
+
         while ( true ) {
+            startTime = System.currentTimeMillis();
+            numberOfOperationsInvolved = 0;
+            StatsLogging.logSystemInfo("before view maintenance");
             try {
                 File statusFile = new File(System.getProperty("cassandra.home") + "/data/" + STATUS_FILE);
                 if ( statusFile.exists() ) {
@@ -132,7 +139,7 @@ public class ViewMaintenanceLogsReader extends Thread {
                      *
                      * **/
                     if ( lastOpertationIdProcessed < operation_id ) {
-
+                        numberOfOperationsInvolved++;
                         DeltaViewTrigger deltaViewTrigger = new DeltaViewTrigger();
                         TriggerResponse deltaViewTriggerResponse = null;
                         if ( type.equalsIgnoreCase("insert") ) {
@@ -313,12 +320,18 @@ public class ViewMaintenanceLogsReader extends Thread {
             } finally {
                 try {
                     logger.debug("Going to sleep now");
+                    long stopTime = System.currentTimeMillis();
+                    logger.info("### Time taken to maintain views | " + (stopTime - startTime));
+                    logger.info("### Number of operations executed | " + numberOfOperationsInvolved);
+                    StatsLogging.logSystemInfo("after view maintenance");
                     this.sleep(SLEEP_INTERVAL);
                 } catch ( InterruptedException e ) {
                     logger.error("Error !! Stacktrace: \n " + ViewMaintenanceUtilities.getStackTrace(e));
                 }
             }
 //        */
+
+
         }
     }
 
