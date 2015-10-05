@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.net.SocketException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
@@ -37,7 +38,11 @@ public class ViewMaintenanceLogsReader extends Thread {
     public ViewMaintenanceLogsReader() {
         logger.debug("************************ Starting view maintenance infrastructure set up ******************");
         ViewMaintenanceConfig.readViewConfigFromFile();
-        ViewMaintenanceConfig.setupViewMaintenanceInfrastructure();
+        try {
+            ViewMaintenanceConfig.setupViewMaintenanceInfrastructure();
+        } catch ( SocketException e ) {
+            logger.error("Error!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
         this.start();
 
     }
