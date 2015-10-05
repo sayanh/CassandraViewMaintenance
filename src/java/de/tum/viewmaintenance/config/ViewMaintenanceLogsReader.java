@@ -326,8 +326,8 @@ public class ViewMaintenanceLogsReader extends Thread {
                 try {
                     logger.debug("Going to sleep now");
                     long stopTime = System.currentTimeMillis();
-                    logger.info("### Time taken to maintain views | " + (stopTime - startTime));
-                    logger.info("### Number of operations executed | " + numberOfOperationsInvolved);
+                    logger.info("### Analysis | Time taken to maintain views | " + (stopTime - startTime));
+                    logger.info("### Analysis | Number of operations executed | " + numberOfOperationsInvolved);
                     StatsLogging.logSystemInfo("after view maintenance");
                     this.sleep(SLEEP_INTERVAL);
                 } catch ( InterruptedException e ) {

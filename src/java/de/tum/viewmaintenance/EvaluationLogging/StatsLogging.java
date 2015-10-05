@@ -17,9 +17,9 @@ public final class StatsLogging {
         Double memoryFree = new Double(Runtime.getRuntime().freeMemory());
         Double memoryAvailable = new Double(Runtime.getRuntime().maxMemory());
 
-        logger.info("### Memory usage {} | {}", message, ((memoryAvailable - memoryFree) /
+        logger.info("### Analysis | Memory usage {} | {}", message, ((memoryAvailable - memoryFree) /
                 memoryAvailable) * 100.0);
-        logger.info("### Memory free {} | {}", message, (memoryFree / memoryAvailable) * 100.0);
+        logger.info("### Analysis | Memory free {} | {}", message, (memoryFree / memoryAvailable) * 100.0);
 
         logger.info("### Memory usage(in bytes) {} | {}", message, (memoryAvailable - memoryFree));
         logger.info("### Memory free(in bytes) {} | {}", message, memoryFree);
