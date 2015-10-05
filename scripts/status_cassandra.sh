@@ -4,11 +4,11 @@ echo "------------------------------------------------------"
 echo "-----------------Working in VM1 ----------------------"
 echo "------------------------------------------------------"
 
-ssh anarchy@vm1 bash -c 'ps aux | grep cassandra'
+ssh anarchy@vm1 'ps aux | grep cassandra'
 
 echo "------------------------------------------------------"
 echo "-----------------Working in VM2 ----------------------"
 echo "------------------------------------------------------"
-ssh anarchy@vm2 bash -c 'ps aux | grep cassandra'
+ssh anarchy@vm2 'ps aux | grep cassandra'
 
 
