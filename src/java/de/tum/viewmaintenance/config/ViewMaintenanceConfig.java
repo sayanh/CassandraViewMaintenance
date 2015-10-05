@@ -9,6 +9,7 @@ import org.apache.commons.configuration.XMLConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -96,12 +97,12 @@ public class ViewMaintenanceConfig {
      * This methods creates the view tables in a cassandra instance.
      */
 
-    public static void setupViewMaintenanceInfrastructure() {
+    public static void setupViewMaintenanceInfrastructure() throws SocketException {
         logger.debug("************************ Creating view maintenance tables ******************");
         Views viewsObj = Views.getInstance();
         List<Table> tempTables = viewsObj.getTables();
         logger.debug("Tables present are = " + tempTables);
-        Cluster cluster = CassandraClientUtilities.getConnection("localhost");
+        Cluster cluster = CassandraClientUtilities.getConnection(CassandraClientUtilities.getEth0Ip());
         boolean resultKeyspace = CassandraClientUtilities.createKeySpace(cluster, viewsObj.getKeyspace());
         logger.debug("Process to create keyspace is = " + resultKeyspace);
         if (resultKeyspace) {

@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.net.SocketException;
 import java.util.*;
 
 /**
@@ -286,7 +287,7 @@ public final class ViewMaintenanceUtilities {
     /**
      * Returns the row with existing record if there exists else returns null
      **/
-    public static Row getExistingRecordIfExists(PrimaryKey primaryKey, Table table) {
+    public static Row getExistingRecordIfExists(PrimaryKey primaryKey, Table table) throws SocketException {
         Statement existingRecordQuery = null;
         // Checking if there is an already existing entry for the join key received
         if ( primaryKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
@@ -304,7 +305,7 @@ public final class ViewMaintenanceUtilities {
 
         logger.debug("#### Existing Record Query :: " + existingRecordQuery);
 
-        List<Row> existingRows = CassandraClientUtilities.commandExecution("localhost", existingRecordQuery);
+        List<Row> existingRows = CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), existingRecordQuery);
 
 
         if ( existingRows != null && existingRows.size() > 0 ) {
@@ -931,11 +932,11 @@ public final class ViewMaintenanceUtilities {
     }
 
 
-    public static List<String> getAllViews() {
+    public static List<String> getAllViews() throws SocketException {
         logger.debug("Getting all the tables from localhost...");
         Statement statement = QueryBuilder.select("keyspace_name", "columnfamily_name")
                 .from("system", "schema_columnfamilies");
-        List<Row> rows = CassandraClientUtilities.commandExecution("localhost", statement);
+        List<Row> rows = CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), statement);
         List<String> finalListViews = new ArrayList<>();
         for ( Row row : rows ) {
             if ( row.getString("keyspace_name").equalsIgnoreCase("schema2") ) {
@@ -971,11 +972,11 @@ public final class ViewMaintenanceUtilities {
         return finalListViews;
     }
 
-    public static List<String> getAllBaseTables() {
+    public static List<String> getAllBaseTables() throws SocketException {
         logger.debug("Getting all the base tables from localhost...");
         Statement statement = QueryBuilder.select("keyspace_name", "columnfamily_name")
                 .from("system", "schema_columnfamilies");
-        List<Row> rows = CassandraClientUtilities.commandExecution("localhost", statement);
+        List<Row> rows = CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), statement);
         List<String> finalListViews = new ArrayList<>();
         for ( Row row : rows ) {
             if ( row.getString("keyspace_name").equalsIgnoreCase("schematest")
@@ -988,9 +989,9 @@ public final class ViewMaintenanceUtilities {
         return finalListViews;
     }
 
-    public static void deleteAllViews() {
+    public static void deleteAllViews() throws SocketException {
         for ( String viewTableName : getAllViews() ) {
-            Cluster cluster = CassandraClientUtilities.getConnection("localhost");
+            Cluster cluster = CassandraClientUtilities.getConnection(CassandraClientUtilities.getEth0Ip());
             CassandraClientUtilities.deleteTable(cluster,
                     ViewMaintenanceUtilities.getKeyspaceAndTableNameInAnArray(viewTableName)[0],
                     ViewMaintenanceUtilities.getKeyspaceAndTableNameInAnArray(viewTableName)[1]);
@@ -999,53 +1000,58 @@ public final class ViewMaintenanceUtilities {
     }
 
     public static void resetAllViews() {
-        for ( String viewTableCombinedName : getAllViews() ) {
-            String viewKeyspaceName = ViewMaintenanceUtilities.getKeyspaceAndTableNameInAnArray(viewTableCombinedName)[0];
-            String viewTableName = ViewMaintenanceUtilities.getKeyspaceAndTableNameInAnArray(viewTableCombinedName)[1];
+        try {
+            for ( String viewTableCombinedName : getAllViews() ) {
+                String viewKeyspaceName = ViewMaintenanceUtilities.getKeyspaceAndTableNameInAnArray(viewTableCombinedName)[0];
+                String viewTableName = ViewMaintenanceUtilities.getKeyspaceAndTableNameInAnArray(viewTableCombinedName)[1];
 
-            Statement getExistingRowsQuery = QueryBuilder.select().all().from(viewKeyspaceName, viewTableName);
+                Statement getExistingRowsQuery = QueryBuilder.select().all().from(viewKeyspaceName, viewTableName);
 
-            List<Row> getExistingRows = CassandraClientUtilities.commandExecution("localhost", getExistingRowsQuery);
-            logger.debug("#### Existing records in {} are :: {}", viewTableCombinedName, getExistingRows);
+                List<Row> getExistingRows = CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), getExistingRowsQuery);
+                logger.debug("#### Existing records in {} are :: {}", viewTableCombinedName, getExistingRows);
 
-            Statement columnDefQuery = QueryBuilder.select().all().from("system", "schema_columns").where(
-                    QueryBuilder.eq("keyspace_name", viewKeyspaceName)).and(QueryBuilder.eq("columnfamily_name", viewTableName));
+                Statement columnDefQuery = QueryBuilder.select().all().from("system", "schema_columns").where(
+                        QueryBuilder.eq("keyspace_name", viewKeyspaceName)).and(QueryBuilder.eq("columnfamily_name", viewTableName));
 
-            List<Row> columnDefs = CassandraClientUtilities.commandExecution("localhost", columnDefQuery);
+                List<Row> columnDefs = CassandraClientUtilities.commandExecution(
+                        CassandraClientUtilities.getEth0Ip(), columnDefQuery);
 
-            logger.debug("#### Columndef :: " + columnDefs);
-            String primaryKeyDataType = "";
-            String primaryKeyColName = "";
-            String primaryKeyJavaType = "";
+                logger.debug("#### Columndef :: " + columnDefs);
+                String primaryKeyDataType = "";
+                String primaryKeyColName = "";
+                String primaryKeyJavaType = "";
 
-            for ( Row row : columnDefs ) {
-                if ( row.getString("type").equalsIgnoreCase("partition_key") ) {
-                    primaryKeyDataType = row.getString("validator");
-                    primaryKeyColName = row.getString("column_name");
-                    primaryKeyJavaType = ViewMaintenanceUtilities.getJavaTypeFromCassandraType(primaryKeyDataType);
-                    break;
-                }
-            }
-
-            logger.debug("### Primary key values, datatype: {}, java type: {} and column_name :: {}",
-                    primaryKeyDataType, primaryKeyJavaType, primaryKeyColName);
-            Statement deleteQuery = null;
-            for ( Row row : getExistingRows ) {
-
-                if ( primaryKeyJavaType.equalsIgnoreCase("String") ) {
-                    deleteQuery = QueryBuilder.delete().from(viewKeyspaceName, viewTableName)
-                            .where(QueryBuilder.eq(primaryKeyColName, row.getString(primaryKeyColName)));
-                } else if ( primaryKeyJavaType.equalsIgnoreCase("Integer") ) {
-                    deleteQuery = QueryBuilder.delete().from(viewKeyspaceName, viewTableName)
-                            .where(QueryBuilder.eq(primaryKeyColName, row.getInt(primaryKeyColName)));
+                for ( Row row : columnDefs ) {
+                    if ( row.getString("type").equalsIgnoreCase("partition_key") ) {
+                        primaryKeyDataType = row.getString("validator");
+                        primaryKeyColName = row.getString("column_name");
+                        primaryKeyJavaType = ViewMaintenanceUtilities.getJavaTypeFromCassandraType(primaryKeyDataType);
+                        break;
+                    }
                 }
 
-                logger.debug("#### Checking :: deleteQuery:: " + deleteQuery);
+                logger.debug("### Primary key values, datatype: {}, java type: {} and column_name :: {}",
+                        primaryKeyDataType, primaryKeyJavaType, primaryKeyColName);
+                Statement deleteQuery = null;
+                for ( Row row : getExistingRows ) {
 
-                CassandraClientUtilities.deleteCommandExecution("localhost", deleteQuery);
+                    if ( primaryKeyJavaType.equalsIgnoreCase("String") ) {
+                        deleteQuery = QueryBuilder.delete().from(viewKeyspaceName, viewTableName)
+                                .where(QueryBuilder.eq(primaryKeyColName, row.getString(primaryKeyColName)));
+                    } else if ( primaryKeyJavaType.equalsIgnoreCase("Integer") ) {
+                        deleteQuery = QueryBuilder.delete().from(viewKeyspaceName, viewTableName)
+                                .where(QueryBuilder.eq(primaryKeyColName, row.getInt(primaryKeyColName)));
+                    }
+
+                    logger.debug("#### Checking :: deleteQuery:: " + deleteQuery);
+
+                    CassandraClientUtilities.deleteCommandExecution(CassandraClientUtilities.getEth0Ip(), deleteQuery);
+                }
+
+
             }
-
-
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
         }
     }
 
@@ -1147,7 +1153,7 @@ public final class ViewMaintenanceUtilities {
     }
 
 
-    public static void storeJoinRowInCache(Row existingRow, Table joinTableConfig) {
+    public static void storeJoinRowInCache(Row existingRow, Table joinTableConfig) throws SocketException {
 
         List<String> columnNames = new ArrayList<>();
         List<Object> objects = new ArrayList<>();
@@ -1180,7 +1186,7 @@ public final class ViewMaintenanceUtilities {
 
         logger.debug("##### InsertCacheQuery :: " + insertCacheQuery);
 
-        CassandraClientUtilities.commandExecution("localhost", insertCacheQuery);
+        CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), insertCacheQuery);
 
         logger.debug("#### Checking old inner join row is cached!!! ");
 

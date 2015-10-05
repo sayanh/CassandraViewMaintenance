@@ -11,6 +11,7 @@ import de.tum.viewmaintenance.view_table_structure.Table;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.SocketException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -162,7 +163,12 @@ public class SumTrigger extends TriggerProcess {
         }
         updateDecrementQuery.append(" where colaggkey_x = '" + resultsLastSumView.getString("colaggkey_x") + "'");
         logger.debug("Decrement update query: {}", updateDecrementQuery.toString());
-        isDecrementQuerySucc = CassandraClientUtilities.commandExecution("localhost", updateDecrementQuery.toString());
+        try {
+            isDecrementQuerySucc = CassandraClientUtilities.commandExecution(
+                    CassandraClientUtilities.getEth0Ip(), updateDecrementQuery.toString());
+        } catch ( SocketException e ) {
+            logger.debug("Error !!" + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
         return isDecrementQuerySucc;
 
@@ -233,7 +239,12 @@ public class SumTrigger extends TriggerProcess {
         }
         updateIncrementQuery.append(" where colaggkey_x = '" + existingRecordDeltaView.getString(request.getViewTable().getBasedOn() + DELTAVIEW_SUFFIX_CURRENT) + "'");
         logger.debug(" Update increment query for overwriting case: {}", updateIncrementQuery.toString());
-        isIncrementQuerySucc = CassandraClientUtilities.commandExecution("localhost", updateIncrementQuery.toString());
+        try {
+            isIncrementQuerySucc = CassandraClientUtilities.commandExecution(
+                    CassandraClientUtilities.getEth0Ip(), updateIncrementQuery.toString());
+        } catch ( SocketException e ) {
+            logger.debug("Error !!" + ViewMaintenanceUtilities.getStackTrace(e));
+        }
         return isIncrementQuerySucc;
     }
 
@@ -287,7 +298,12 @@ public class SumTrigger extends TriggerProcess {
 
         insertIncrementQuery.append(" ) " + valuesQuery.toString() + " ) ");
         logger.debug(" Insert increment query : {}", insertIncrementQuery.toString());
-        isIncrementQuerySucc = CassandraClientUtilities.commandExecution("localhost", insertIncrementQuery.toString());
+        try {
+            isIncrementQuerySucc = CassandraClientUtilities.commandExecution(
+                    CassandraClientUtilities.getEth0Ip(), insertIncrementQuery.toString());
+        } catch ( SocketException e ) {
+            logger.debug("Error !!" + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
         return isIncrementQuerySucc;
 

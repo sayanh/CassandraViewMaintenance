@@ -15,7 +15,12 @@ import org.slf4j.LoggerFactory;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Enumeration;
 import java.util.List;
 
 public class CassandraClientUtilities {
@@ -43,19 +48,12 @@ public class CassandraClientUtilities {
     /*
     * This method creates a connection to a Cassandra instance and returns the cluster
     */
-    public static Cluster getConnection(String ip) {
-        if (ip!=null && !ip.isEmpty() && !ip.equalsIgnoreCase("localhost")) {
+    public static Cluster getConnection(String ip) throws SocketException {
+        if (ip!=null && !ip.isEmpty() && !ip.equalsIgnoreCase(getEth0Ip())) {
             return getConnectionInstance(ip);
         }
-        Session session = null;
         Cluster cluster = null;
         try {
-            ResultSet results;
-            Row rows;
-
-//            cluster = Cluster.builder()
-//                    .addContactPoint("localhost")
-//                    .build();
 
             cluster = getConnectionInstance();
 
@@ -66,11 +64,11 @@ public class CassandraClientUtilities {
         return cluster;
     }
 
-    public static synchronized Cluster getConnectionInstance() {
+    public static synchronized Cluster getConnectionInstance() throws SocketException {
 
         if ( clusterConn == null ) {
             return Cluster.builder()
-                    .addContactPoint("localhost")
+                    .addContactPoint(getEth0Ip())
                     .build();
         }
         return clusterConn;
@@ -294,7 +292,7 @@ public class CassandraClientUtilities {
         Session session = null;
         List<Row> result = null;
         try {
-            cluster = CassandraClientUtilities.getConnection("localhost");
+            cluster = CassandraClientUtilities.getConnection(getEth0Ip());
             session = cluster.connect();
             Statement statement = null;
             if ( equal == null ) {
@@ -363,6 +361,25 @@ public class CassandraClientUtilities {
         }
         viewTable.setColumns(viewTableCols);
         return viewTable;
+    }
+
+
+    public static String getEth0Ip() throws SocketException {
+        Enumeration<NetworkInterface> nets = NetworkInterface.getNetworkInterfaces();
+        for (NetworkInterface netint : Collections.list(nets)) {
+            if (netint.getName().equalsIgnoreCase("eth0")) {
+                Enumeration<InetAddress> inetAddresses = netint.getInetAddresses();
+                for (InetAddress inetAddress : Collections.list(inetAddresses)) {
+                    String tempAddress = inetAddress.toString().replaceAll("/", "");
+                    if (tempAddress.toString().matches("^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$")) {
+                        return tempAddress;
+                    }
+                }
+                break;
+            }
+        }
+
+        return null;
     }
 
 

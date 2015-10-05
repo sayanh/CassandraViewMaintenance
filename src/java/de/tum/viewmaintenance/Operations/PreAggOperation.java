@@ -16,6 +16,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.SocketException;
 import java.util.*;
 
 /**
@@ -138,16 +139,26 @@ public class PreAggOperation extends GenericOperation {
                     aggregationKeyData, deltaTableRecord);
 
 
-            Row existingRecordPreAggTable = ViewMaintenanceUtilities.getExistingRecordIfExists(preAggTablePK,
-                    operationViewTables.get(0));
+            Row existingRecordPreAggTable = null;
+            try {
+                existingRecordPreAggTable = ViewMaintenanceUtilities.getExistingRecordIfExists(preAggTablePK,
+                        operationViewTables.get(0));
+            } catch ( SocketException e ) {
+                logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+            }
 
 
             if ( inputViewTables != null && inputViewTables.get(0).getName().contains(WHERE_TABLE_INDENTIFIER) ) {
                 Table whereTable = inputViewTables.get(0);
 
                 if ( whereTable.isMaterialized() ) { // It is materialized at the moment
-                    Row existingRecordInWhereView = ViewMaintenanceUtilities.getExistingRecordIfExists(baseTablePK,
-                            whereTable);
+                    Row existingRecordInWhereView = null;
+                    try {
+                        existingRecordInWhereView = ViewMaintenanceUtilities.getExistingRecordIfExists(baseTablePK,
+                                whereTable);
+                    } catch ( SocketException e ) {
+                        logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+                    }
 
                     if ( existingRecordInWhereView == null ) { // Where table does not contain the data
 
@@ -348,11 +359,21 @@ public class PreAggOperation extends GenericOperation {
             PrimaryKey preAggTablePK = utilityProcessor.preAggTablePK;
             PrimaryKey baseTablePK = utilityProcessor.baseTablePK;
 
-            Row existingRecordPreAggTable = ViewMaintenanceUtilities.getExistingRecordIfExists(preAggTablePK,
-                    operationViewTables.get(0));
+            Row existingRecordPreAggTable = null;
+            try {
+                existingRecordPreAggTable = ViewMaintenanceUtilities.getExistingRecordIfExists(preAggTablePK,
+                        operationViewTables.get(0));
+            } catch ( SocketException e ) {
+                logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+            }
 
-            Row existingRecordInInnerJoin = ViewMaintenanceUtilities.getExistingRecordIfExists(innerJoinPrimaryKeyCur,
-                    innerJoinTableConfig);
+            Row existingRecordInInnerJoin = null;
+            try {
+                existingRecordInInnerJoin = ViewMaintenanceUtilities.getExistingRecordIfExists(innerJoinPrimaryKeyCur,
+                        innerJoinTableConfig);
+            } catch ( SocketException e ) {
+                logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+            }
 
             logger.debug("#### Checking :: existingRecordInInnerJoin :: " + existingRecordInInnerJoin);
 
@@ -378,8 +399,13 @@ public class PreAggOperation extends GenericOperation {
 
                 boolean curDataPresentInInnerJoin = false;
 
-                Row oldInnerJoinRecord = ViewMaintenanceUtilities.getExistingRecordIfExists(oldInnerJoinPrimaryKey,
-                        innerJoinTableConfig);
+                Row oldInnerJoinRecord = null;
+                try {
+                    oldInnerJoinRecord = ViewMaintenanceUtilities.getExistingRecordIfExists(oldInnerJoinPrimaryKey,
+                            innerJoinTableConfig);
+                } catch ( SocketException e ) {
+                    logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+                }
 
                 logger.debug("#### oldInnerJoinRecord :: " + oldInnerJoinRecord);
 
@@ -394,8 +420,13 @@ public class PreAggOperation extends GenericOperation {
                     cacheViewConfig.setColumns(innerJoinTableConfig.getColumns());
 
 
-                    Row existingRecordInCache = ViewMaintenanceUtilities.getExistingRecordIfExists(oldInnerJoinPrimaryKey,
-                            cacheViewConfig);
+                    Row existingRecordInCache = null;
+                    try {
+                        existingRecordInCache = ViewMaintenanceUtilities.getExistingRecordIfExists(oldInnerJoinPrimaryKey,
+                                cacheViewConfig);
+                    } catch ( SocketException e ) {
+                        logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+                    }
 
                     logger.debug("##### existingRecordInCache :: " + existingRecordInCache);
 
@@ -448,8 +479,13 @@ public class PreAggOperation extends GenericOperation {
                         deltaTableRecord);
 
 
-                Row oldInnerJoinRecord = ViewMaintenanceUtilities.getExistingRecordIfExists(oldInnerJoinPrimaryKey,
-                        innerJoinTableConfig);
+                Row oldInnerJoinRecord = null;
+                try {
+                    oldInnerJoinRecord = ViewMaintenanceUtilities.getExistingRecordIfExists(oldInnerJoinPrimaryKey,
+                            innerJoinTableConfig);
+                } catch ( SocketException e ) {
+                    logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+                }
 
                 if ( oldInnerJoinRecord == null ) {
 
@@ -462,8 +498,13 @@ public class PreAggOperation extends GenericOperation {
                     cacheViewConfig.setColumns(innerJoinTableConfig.getColumns());
 
 
-                    Row existingRecordInCache = ViewMaintenanceUtilities.getExistingRecordIfExists(oldInnerJoinPrimaryKey,
-                            cacheViewConfig);
+                    Row existingRecordInCache = null;
+                    try {
+                        existingRecordInCache = ViewMaintenanceUtilities.getExistingRecordIfExists(
+                                oldInnerJoinPrimaryKey, cacheViewConfig);
+                    } catch ( SocketException e ) {
+                        logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+                    }
 
                     UtilityProcessor processor = utilityProcessorWhenTableIsDiffFromTargetAggTable(triggerRequest);
                     if ( existingRecordInCache != null ) {
@@ -507,8 +548,13 @@ public class PreAggOperation extends GenericOperation {
 
         Map<String, ColumnDefinition> innerJoinTableDesc = ViewMaintenanceUtilities.getTableDefinitition(innerJoinTableConfig.getKeySpace(),
                 innerJoinTableConfig.getName());
-        Row existingRecordInInnerJoin = ViewMaintenanceUtilities.getExistingRecordIfExists(innerJoinPrimaryKeyCur,
-                innerJoinTableConfig);
+        Row existingRecordInInnerJoin = null;
+        try {
+            existingRecordInInnerJoin = ViewMaintenanceUtilities.getExistingRecordIfExists(innerJoinPrimaryKeyCur,
+                    innerJoinTableConfig);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
         if ( existingRecordInInnerJoin != null ) {
             Set keySet = dataJson.keySet();
@@ -713,12 +759,20 @@ public class PreAggOperation extends GenericOperation {
             int value = mapAggVal.get(keyEntry.getKey());
             if ( keyEntry.getValue() instanceof Integer ) {
                 primaryKeyPreAggTable.setColumnValueInString((Integer) keyEntry.getValue() + "");
-                exisitingRecordPreAgg = ViewMaintenanceUtilities.getExistingRecordIfExists(primaryKeyPreAggTable,
-                        operationViewTables.get(0));
+                try {
+                    exisitingRecordPreAgg = ViewMaintenanceUtilities.getExistingRecordIfExists(primaryKeyPreAggTable,
+                            operationViewTables.get(0));
+                } catch ( SocketException e ) {
+                    logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+                }
             } else if ( keyEntry.getValue() instanceof String ) {
                 primaryKeyPreAggTable.setColumnValueInString((String) keyEntry.getValue());
-                exisitingRecordPreAgg = ViewMaintenanceUtilities.getExistingRecordIfExists(primaryKeyPreAggTable,
-                        operationViewTables.get(0));
+                try {
+                    exisitingRecordPreAgg = ViewMaintenanceUtilities.getExistingRecordIfExists(primaryKeyPreAggTable,
+                            operationViewTables.get(0));
+                } catch ( SocketException e ) {
+                    logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+                }
             }
             userData.add(functionName);
             userData.add(value + "");
@@ -848,7 +902,13 @@ public class PreAggOperation extends GenericOperation {
 
         Statement selectAllStatement = QueryBuilder.select().all().from(inputViewTables.get(0).getKeySpace(), cacheTableName);
 
-        List<Row> selectAllResult = CassandraClientUtilities.commandExecution("localhost", selectAllStatement);
+        List<Row> selectAllResult = null;
+        try {
+            selectAllResult = CassandraClientUtilities.commandExecution(
+                    CassandraClientUtilities.getEth0Ip(), selectAllStatement);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
         if ( selectAllResult != null && selectAllResult.size() > 0 ) {
             Statement deleteQueryInCacheTableQuery = null;
@@ -865,7 +925,12 @@ public class PreAggOperation extends GenericOperation {
 
                 logger.debug("### Delete query in cacheTable :: " + deleteQueryInCacheTableQuery);
 
-                CassandraClientUtilities.commandExecution("localhost", deleteQueryInCacheTableQuery);
+                try {
+                    CassandraClientUtilities.commandExecution(
+                            CassandraClientUtilities.getEth0Ip(), deleteQueryInCacheTableQuery);
+                } catch ( SocketException e ) {
+                    logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+                }
 
             }
 
@@ -1037,8 +1102,12 @@ public class PreAggOperation extends GenericOperation {
                         + DeltaViewTrigger.CURRENT));
             }
 
-            existingRecordInCache = ViewMaintenanceUtilities.getExistingRecordIfExists(innerJoinPrimaryKey,
-                    cacheViewConfig);
+            try {
+                existingRecordInCache = ViewMaintenanceUtilities.getExistingRecordIfExists(innerJoinPrimaryKey,
+                        cacheViewConfig);
+            } catch ( SocketException e ) {
+                logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+            }
 
 
             logger.debug("#### exisitingRecordInCache :: " + existingRecordInCache);
@@ -1055,8 +1124,12 @@ public class PreAggOperation extends GenericOperation {
 
                     // Delete from inner join cache
                 } else {
-                    existingRecordInInnerJoin = ViewMaintenanceUtilities.getExistingRecordIfExists(innerJoinPrimaryKey,
-                            innerJoinTableConfig);
+                    try {
+                        existingRecordInInnerJoin = ViewMaintenanceUtilities.getExistingRecordIfExists(innerJoinPrimaryKey,
+                                innerJoinTableConfig);
+                    } catch ( SocketException e ) {
+                        logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+                    }
 
                     logger.debug("#### existingRecordInInnerJoin :: " + existingRecordInInnerJoin);
 
@@ -1136,7 +1209,11 @@ public class PreAggOperation extends GenericOperation {
 
         logger.debug("### UpdateSumQuery in preagg :: " + updateSumQuery);
 
-        CassandraClientUtilities.commandExecution("localhost", updateSumQuery);
+        try {
+            CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), updateSumQuery);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
     }
 
@@ -1269,7 +1346,13 @@ public class PreAggOperation extends GenericOperation {
                     operationViewTables.get(0).getName()).where(QueryBuilder.eq(preAggTablePK.getColumnName(), preAggTablePK.getColumnValueInString()));
         }
 
-        List<Row> existingRecordPreAggTableLatest = CassandraClientUtilities.commandExecution("localhost", existingRecordQueryInPreAggTable);
+        List<Row> existingRecordPreAggTableLatest = null;
+        try {
+            existingRecordPreAggTableLatest = CassandraClientUtilities.commandExecution(
+                    CassandraClientUtilities.getEth0Ip(), existingRecordQueryInPreAggTable);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
 
         int existingVal = existingRecordPreAggTableLatest.get(0).getInt(modifiedColumnName);
@@ -1303,7 +1386,11 @@ public class PreAggOperation extends GenericOperation {
 
         logger.debug("### UpdateSumQuery in preagg :: " + updateSumQuery);
 
-        CassandraClientUtilities.commandExecution("localhost", updateSumQuery);
+        try {
+            CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), updateSumQuery);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
     }
 
@@ -1326,7 +1413,11 @@ public class PreAggOperation extends GenericOperation {
 
         logger.debug("### UpdateCountQuery :: " + updateCountQuery);
 
-        CassandraClientUtilities.commandExecution("localhost", updateCountQuery);
+        try {
+            CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), updateCountQuery);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
     }
 
@@ -1359,7 +1450,11 @@ public class PreAggOperation extends GenericOperation {
 
         logger.debug("### Insert query for Sum into pre agg view table :: " + insertSumQuery);
 
-        CassandraClientUtilities.commandExecution("localhost", insertSumQuery);
+        try {
+            CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), insertSumQuery);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
     }
 
@@ -1384,7 +1479,11 @@ public class PreAggOperation extends GenericOperation {
 
         logger.debug("### insert Count query to pre agg view:: " + insertCountQuery);
 
-        CassandraClientUtilities.commandExecution("localhost", insertCountQuery);
+        try {
+            CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), insertCountQuery);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
     }
 
@@ -1399,8 +1498,13 @@ public class PreAggOperation extends GenericOperation {
     private void deleteFromSumPreAggView(PrimaryKey aggregateKey, String targetColName) {
         Statement updateQuery = null;
 
-        Row existingRecordOldAggKey = ViewMaintenanceUtilities.getExistingRecordIfExists(aggregateKey,
-                operationViewTables.get(0));
+        Row existingRecordOldAggKey = null;
+        try {
+            existingRecordOldAggKey = ViewMaintenanceUtilities.getExistingRecordIfExists(aggregateKey,
+                    operationViewTables.get(0));
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
         logger.debug("### Existing record for OldAggKey :: " + existingRecordOldAggKey);
         logger.debug("### Checking -- target column name :: " + targetColName);
         if ( existingRecordOldAggKey == null ) {
@@ -1421,14 +1525,23 @@ public class PreAggOperation extends GenericOperation {
         }
 
         logger.debug("### Delete query for sum in preagg View :: " + updateQuery);
-        CassandraClientUtilities.commandExecution("localhost", updateQuery);
+        try {
+            CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), updateQuery);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
     }
 
     private void deleteCurFromSumPreAggView(PrimaryKey aggregateKey, String targetColName) {
         Statement updateQuery = null;
 
-        Row existingRecordOldAggKey = ViewMaintenanceUtilities.getExistingRecordIfExists(aggregateKey,
-                operationViewTables.get(0));
+        Row existingRecordOldAggKey = null;
+        try {
+            existingRecordOldAggKey = ViewMaintenanceUtilities.getExistingRecordIfExists(aggregateKey,
+                    operationViewTables.get(0));
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
         logger.debug("### Existing record for OldAggKey :: " + existingRecordOldAggKey);
         logger.debug("### Checking -- target column name :: " + targetColName);
         if ( existingRecordOldAggKey == null ) {
@@ -1448,14 +1561,23 @@ public class PreAggOperation extends GenericOperation {
         }
 
         logger.debug("### Delete query for sum in preagg View :: " + updateQuery);
-        CassandraClientUtilities.commandExecution("localhost", updateQuery);
+        try {
+            CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), updateQuery);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
     }
 
     private void deleteFromSumPreAggView(PrimaryKey aggregateKey, String targetColName, int subtractionAmount) {
         Statement updateQuery = null;
 
-        Row existingRecordOldAggKey = ViewMaintenanceUtilities.getExistingRecordIfExists(aggregateKey,
-                operationViewTables.get(0));
+        Row existingRecordOldAggKey = null;
+        try {
+            existingRecordOldAggKey = ViewMaintenanceUtilities.getExistingRecordIfExists(aggregateKey,
+                    operationViewTables.get(0));
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
         logger.debug("### Existing record for OldAggKey :: " + existingRecordOldAggKey);
         logger.debug("### Checking -- target column name :: " + targetColName);
         if ( existingRecordOldAggKey == null ) {
@@ -1474,14 +1596,23 @@ public class PreAggOperation extends GenericOperation {
         }
 
         logger.debug("### Delete query for sum in preagg View :: " + updateQuery);
-        CassandraClientUtilities.commandExecution("localhost", updateQuery);
+        try {
+            CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), updateQuery);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
     }
 
     private void deleteFromCountPreAggView(PrimaryKey aggregateKey, String targetColName) {
         Statement deleteCountQuery = null;
 
-        Row existingRecordOldAggKey = ViewMaintenanceUtilities.getExistingRecordIfExists(aggregateKey,
-                operationViewTables.get(0));
+        Row existingRecordOldAggKey = null;
+        try {
+            existingRecordOldAggKey = ViewMaintenanceUtilities.getExistingRecordIfExists(aggregateKey,
+                    operationViewTables.get(0));
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
         logger.debug("### Existing record for aggKey :: " + existingRecordOldAggKey);
         int oldAggValue = existingRecordOldAggKey.getInt(targetColName);
         Update.Assignments assignments = QueryBuilder.update(operationViewTables.get(0).getKeySpace(),
@@ -1496,7 +1627,11 @@ public class PreAggOperation extends GenericOperation {
         }
 
         logger.debug("### Delete query for sum in preagg View :: " + deleteCountQuery);
-        CassandraClientUtilities.commandExecution("localhost", deleteCountQuery);
+        try {
+            CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), deleteCountQuery);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
     }
 
 

@@ -17,6 +17,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.SocketException;
 import java.util.*;
 
 /**
@@ -116,8 +117,12 @@ public class ResultViewOperation extends GenericOperation {
 
                 colAggKey = derivedColumnName;
 
-                existingCurRecordAggKeyAggView = ViewMaintenanceUtilities.getExistingRecordIfExists(curColAggKeyPKAggView,
-                        aggTable);
+                try {
+                    existingCurRecordAggKeyAggView = ViewMaintenanceUtilities.getExistingRecordIfExists(curColAggKeyPKAggView,
+                            aggTable);
+                } catch ( SocketException e ) {
+                    logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+                }
 
                 logger.debug("#### existingRecordCurAggKeyAggView : " + existingCurRecordAggKeyAggView);
 
@@ -136,8 +141,13 @@ public class ResultViewOperation extends GenericOperation {
 
         logger.debug("#### Tentative user data for cur agg key(result view) : " + curUserData);
 
-        Row existingCurRecordResultView = ViewMaintenanceUtilities.getExistingRecordIfExists(curColAggKeyPKResultView,
-                operationViewTables.get(0));
+        Row existingCurRecordResultView = null;
+        try {
+            existingCurRecordResultView = ViewMaintenanceUtilities.getExistingRecordIfExists(curColAggKeyPKResultView,
+                    operationViewTables.get(0));
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
 
         logger.debug("#### curColAggKeyPKResultView : " + curColAggKeyPKResultView);
@@ -193,11 +203,16 @@ public class ResultViewOperation extends GenericOperation {
 
             logger.debug("#### Old primary key : " + oldAggPKey);
 
-            Row existingOldRecordAggView = ViewMaintenanceUtilities.getExistingRecordIfExists(oldAggPKey,
-                    aggTable);
-
-            Row existingOldRecordResultView = ViewMaintenanceUtilities.getExistingRecordIfExists(oldResultPKey,
-                    operationViewTables.get(0));
+            Row existingOldRecordAggView = null;
+            Row existingOldRecordResultView = null;
+            try {
+                existingOldRecordAggView = ViewMaintenanceUtilities.getExistingRecordIfExists(oldAggPKey,
+                        aggTable);
+                existingOldRecordResultView = ViewMaintenanceUtilities.getExistingRecordIfExists(oldResultPKey,
+                        operationViewTables.get(0));
+            } catch ( SocketException e ) {
+                logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+            }
 
             if ( existingOldRecordAggView != null ) {
 
@@ -265,7 +280,11 @@ public class ResultViewOperation extends GenericOperation {
 
         logger.debug("### Insert query into Agg View :: " + insertIntoAggViewQuery);
 
-        CassandraClientUtilities.commandExecution("localhost", insertIntoAggViewQuery);
+        try {
+            CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), insertIntoAggViewQuery);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
     }
 
@@ -307,8 +326,12 @@ public class ResultViewOperation extends GenericOperation {
                 curExistingPKPreAggViewValue = ((String) dataJson.get(derivedColumnName)).replaceAll("'", "");
                 preAggViewTablePK = new PrimaryKey(preaggColEntry.getKey(), preaggColEntry.getValue().type.toString(),
                         curExistingPKPreAggViewValue);
-                curExistingRecordPreAggView = ViewMaintenanceUtilities.getExistingRecordIfExists(preAggViewTablePK,
-                        preaggTable);
+                try {
+                    curExistingRecordPreAggView = ViewMaintenanceUtilities.getExistingRecordIfExists(preAggViewTablePK,
+                            preaggTable);
+                } catch ( SocketException e ) {
+                    logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+                }
 
                 List<String> tempList = new ArrayList<>();
                 tempList.add(preaggColEntry.getValue()
@@ -374,8 +397,12 @@ public class ResultViewOperation extends GenericOperation {
 
 
                 // Processing starts for old aggregate key data
-                lastExistingRecordPreAggView = ViewMaintenanceUtilities.getExistingRecordIfExists(oldAggKeyPK,
-                        preaggTable);
+                try {
+                    lastExistingRecordPreAggView = ViewMaintenanceUtilities.getExistingRecordIfExists(oldAggKeyPK,
+                            preaggTable);
+                } catch ( SocketException e ) {
+                    logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+                }
 
                 logger.debug("### Existing record for pre agg view for old agg key:: " + lastExistingRecordPreAggView);
 
@@ -428,7 +455,11 @@ public class ResultViewOperation extends GenericOperation {
 
         logger.debug("### Insert query source: preagg view dest: resultviewtable :: " + insertPreAggIntoResultQuery);
 
-        CassandraClientUtilities.commandExecution("localhost", insertPreAggIntoResultQuery);
+        try {
+            CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), insertPreAggIntoResultQuery);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
     }
 
@@ -488,7 +519,12 @@ public class ResultViewOperation extends GenericOperation {
         logger.debug("### User data created out of the where view table and dataJson :: " + userData);
 
         // Query the where table if this data is there or not
-        Row existingRecordWhereTable = ViewMaintenanceUtilities.getExistingRecordIfExists(whereTablePrimaryKey, whereTableInvolved);
+        Row existingRecordWhereTable = null;
+        try {
+            existingRecordWhereTable = ViewMaintenanceUtilities.getExistingRecordIfExists(whereTablePrimaryKey, whereTableInvolved);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
 
         // Map for result view table along the lines of userData
@@ -522,8 +558,13 @@ public class ResultViewOperation extends GenericOperation {
         if ( existingRecordWhereTable != null ) {
             logger.debug("#### Existing record in the whereViewTable #### " + existingRecordWhereTable);
 
-            Row existingRecordResultView = ViewMaintenanceUtilities.getExistingRecordIfExists(resultTablePrimaryKey,
-                    resultTable);
+            Row existingRecordResultView = null;
+            try {
+                existingRecordResultView = ViewMaintenanceUtilities.getExistingRecordIfExists(resultTablePrimaryKey,
+                        resultTable);
+            } catch ( SocketException e ) {
+                logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+            }
 
             if ( existingRecordResultView != null ) {
                 // Get existing record from the result view and update
@@ -540,8 +581,13 @@ public class ResultViewOperation extends GenericOperation {
 
             logger.debug("#### Record does not exist in the whereViewTable ####");
             // Either it is not there or if it is there then it needs to be deleted from result view
-            Row existingRecordResultView = ViewMaintenanceUtilities.getExistingRecordIfExists(resultTablePrimaryKey,
-                    resultTable);
+            Row existingRecordResultView = null;
+            try {
+                existingRecordResultView = ViewMaintenanceUtilities.getExistingRecordIfExists(resultTablePrimaryKey,
+                        resultTable);
+            } catch ( SocketException e ) {
+                logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+            }
 
             if ( existingRecordResultView != null ) {
                 logger.debug("#### Existing record found in the result view table :: " + existingRecordResultView);
@@ -573,7 +619,11 @@ public class ResultViewOperation extends GenericOperation {
         }
 
         logger.debug("#### Delete query from result view table :: " + deleteQuery);
-        CassandraClientUtilities.commandExecution("localhost", deleteQuery);
+        try {
+            CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), deleteQuery);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
     }
 
@@ -607,7 +657,11 @@ public class ResultViewOperation extends GenericOperation {
 
 
             logger.debug("### Final update query for result view operation maintenance :: " + updateQuery);
-            CassandraClientUtilities.commandExecution("localhost", updateQuery);
+            try {
+                CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), updateQuery);
+            } catch ( SocketException e ) {
+                logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+            }
         }
     }
 
@@ -632,7 +686,11 @@ public class ResultViewOperation extends GenericOperation {
 
         logger.debug("#### Final insert query :: " + insertQuery);
 
-        CassandraClientUtilities.commandExecution("localhost", insertQuery);
+        try {
+            CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), insertQuery);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
     }
 
     @Override
@@ -690,7 +748,13 @@ public class ResultViewOperation extends GenericOperation {
             resultTablePrimaryKey.setColumnValueInString(whereStringArr[1].trim().replace("'", ""));
         }
 
-        Row recordTobeDeleted = ViewMaintenanceUtilities.getExistingRecordIfExists(whereTablePrimaryKey, whereTableConfig);
+        Row recordTobeDeleted = null;
+        try {
+            recordTobeDeleted = ViewMaintenanceUtilities.getExistingRecordIfExists(
+                    whereTablePrimaryKey, whereTableConfig);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
         logger.debug("### Delete from result view for primary key :: " + resultTablePrimaryKey);
         if ( recordTobeDeleted == null ) {
@@ -733,7 +797,12 @@ public class ResultViewOperation extends GenericOperation {
 
         logger.debug("#### aggPrimaryKey :: " + aggPrimaryKey);
 
-        Row recordTobeDeleted = ViewMaintenanceUtilities.getExistingRecordIfExists(aggPrimaryKey, aggTableConfig);
+        Row recordTobeDeleted = null;
+        try {
+            recordTobeDeleted = ViewMaintenanceUtilities.getExistingRecordIfExists(aggPrimaryKey, aggTableConfig);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
         logger.debug("### Delete from result view for primary key :: " + resultTablePrimaryKey);
 
 
@@ -811,7 +880,12 @@ public class ResultViewOperation extends GenericOperation {
 
         logger.debug("#### preAggPrimaryKey :: " + preAggPrimaryKey);
 
-        Row recordTobeDeleted = ViewMaintenanceUtilities.getExistingRecordIfExists(preAggPrimaryKey, preAggTableConfig);
+        Row recordTobeDeleted = null;
+        try {
+            recordTobeDeleted = ViewMaintenanceUtilities.getExistingRecordIfExists(preAggPrimaryKey, preAggTableConfig);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
         logger.debug("### Delete from result view for primary key :: " + resultTablePrimaryKey);
 
 

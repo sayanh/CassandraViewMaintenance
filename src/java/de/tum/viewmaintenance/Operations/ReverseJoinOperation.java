@@ -26,6 +26,7 @@ import org.apache.cassandra.tools.NodeTool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.SocketException;
 import java.util.*;
 
 /**
@@ -207,16 +208,24 @@ public class ReverseJoinOperation extends GenericOperation {
                     whereTableInvolved.getName()).where(QueryBuilder.eq(actualPrimaryKey.getColumnName(),
                     Integer.parseInt(actualPrimaryKey.getColumnValueInString())));
             logger.debug("### ViewMaintenance eligibility query(Integer) :: " + whereTableExistentQuery);
-            whereTableExistingRows = CassandraClientUtilities.commandExecution("localhost",
-                    whereTableExistentQuery);
+            try {
+                whereTableExistingRows = CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(),
+                        whereTableExistentQuery);
+            } catch ( SocketException e ) {
+                logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+            }
         } else if ( actualPrimaryKey.getColumnJavaType().equalsIgnoreCase("String") ) {
             Statement whereTableExistentQuery = QueryBuilder.select().all().from(whereTableInvolved.getKeySpace(),
                     whereTableInvolved.getName()).where(QueryBuilder.eq(actualPrimaryKey.getColumnName(),
                     actualPrimaryKey.getColumnValueInString()));
             logger.debug("### ViewMaintenance eligibility query(String) :: " + whereTableExistentQuery);
 
-            whereTableExistingRows = CassandraClientUtilities.commandExecution("localhost",
-                    whereTableExistentQuery);
+            try {
+                whereTableExistingRows = CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(),
+                        whereTableExistentQuery);
+            } catch ( SocketException e ) {
+                logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+            }
         }
         List<String> joinKeyData = new ArrayList<>();
         joinKeyData.add(primaryColName);
@@ -429,7 +438,11 @@ public class ReverseJoinOperation extends GenericOperation {
             Statement updateQuery = assignments.where(whereClause);
 
             logger.debug("### Delete query for reverse join view table " + updateQuery);
-            CassandraClientUtilities.commandExecution("localhost", updateQuery);
+            try {
+                CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), updateQuery);
+            } catch ( SocketException e ) {
+                logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+            }
         }
     }
 
@@ -455,7 +468,13 @@ public class ReverseJoinOperation extends GenericOperation {
 
         logger.debug("#### Existing Record Query :: " + existingRecordQuery);
 
-        List<Row> existingRows = CassandraClientUtilities.commandExecution("localhost", existingRecordQuery);
+        List<Row> existingRows = null;
+        try {
+            existingRows = CassandraClientUtilities.commandExecution(CassandraClientUtilities
+                    .getEth0Ip(), existingRecordQuery);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
 
         if ( existingRows.size() > 0 ) {
@@ -568,7 +587,11 @@ public class ReverseJoinOperation extends GenericOperation {
                 , objects.toArray());
         logger.debug("### Final insert query to reverseJoin Table :: " + finalInsertQuery);
 
-        CassandraClientUtilities.commandExecution("localhost", finalInsertQuery);
+        try {
+            CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), finalInsertQuery);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
     }
 
 
@@ -687,7 +710,11 @@ public class ReverseJoinOperation extends GenericOperation {
 
         logger.debug("### Final updateQuery for reverse join :: " + updateQuery);
 
-        CassandraClientUtilities.commandExecution("localhost", updateQuery.toString());
+        try {
+            CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), updateQuery.toString());
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
 
     }
@@ -720,8 +747,13 @@ public class ReverseJoinOperation extends GenericOperation {
 
         logger.debug("#### reverseJoinPrimaryKey :: " + reverseJoinPrimaryKey);
 
-        Row existingRowReverseJoinView = ViewMaintenanceUtilities.getExistingRecordIfExists(reverseJoinPrimaryKey,
-                operationViewTables.get(0));
+        Row existingRowReverseJoinView = null;
+        try {
+            existingRowReverseJoinView = ViewMaintenanceUtilities.getExistingRecordIfExists(reverseJoinPrimaryKey,
+                    operationViewTables.get(0));
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
         logger.debug("#### ExistingRowReverseJoinView :: " + existingRowReverseJoinView);
 

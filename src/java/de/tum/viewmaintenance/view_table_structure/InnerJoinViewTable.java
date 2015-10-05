@@ -2,10 +2,12 @@ package de.tum.viewmaintenance.view_table_structure;
 
 import com.datastax.driver.core.Cluster;
 import de.tum.viewmaintenance.client.CassandraClientUtilities;
+import de.tum.viewmaintenance.config.ViewMaintenanceUtilities;
 import net.sf.jsqlparser.statement.select.Join;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -63,7 +65,12 @@ public class InnerJoinViewTable implements ViewTable {
     public void materialize() {
         for (Table newTable : getTables()) {
             logger.debug(" Table getting materialized :: " + newTable);
-            Cluster cluster = CassandraClientUtilities.getConnection("localhost");
+            Cluster cluster = null;
+            try {
+                cluster = CassandraClientUtilities.getConnection(CassandraClientUtilities.getEth0Ip());
+            } catch ( SocketException e ) {
+                logger.debug("Error !!" + ViewMaintenanceUtilities.getStackTrace(e));
+            }
             CassandraClientUtilities.createTable(cluster, newTable);
             CassandraClientUtilities.closeConnection(cluster);
         }

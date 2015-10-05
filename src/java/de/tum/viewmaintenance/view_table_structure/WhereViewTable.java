@@ -12,6 +12,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.SocketException;
 import java.util.*;
 
 /**
@@ -139,7 +140,12 @@ public class WhereViewTable implements ViewTable {
     public void materialize() {
         for (Table newTable : getTables()) {
             logger.debug(" Table getting materialized :: " + newTable);
-            Cluster cluster = CassandraClientUtilities.getConnection("localhost");
+            Cluster cluster = null;
+            try {
+                cluster = CassandraClientUtilities.getConnection(CassandraClientUtilities.getEth0Ip());
+            } catch ( SocketException e ) {
+                logger.debug("Error !!" + ViewMaintenanceUtilities.getStackTrace(e));
+            }
             CassandraClientUtilities.createTable(cluster, newTable);
             CassandraClientUtilities.closeConnection(cluster);
         }

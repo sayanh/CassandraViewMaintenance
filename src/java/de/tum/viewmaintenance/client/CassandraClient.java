@@ -7,6 +7,9 @@ import com.datastax.driver.core.Session;
 import com.datastax.driver.core.policies.DCAwareRoundRobinPolicy;
 import com.datastax.driver.core.policies.DefaultRetryPolicy;
 import com.datastax.driver.core.policies.TokenAwarePolicy;
+import de.tum.viewmaintenance.config.ViewMaintenanceUtilities;
+
+import java.net.SocketException;
 
 /**
  * @ shazra on 5/28/15.
@@ -17,19 +20,23 @@ public class CassandraClient {
 
 
 
-            Cluster cluster;
+            Cluster cluster = null;
             Session session;
             ResultSet results;
             Row rows;
 
             // Connect to the cluster and keyspace "demo"
-            cluster = Cluster
-                    .builder()
-                    .addContactPoint("localhost")
-                    .withRetryPolicy(DefaultRetryPolicy.INSTANCE)
-                    .withLoadBalancingPolicy(
-                            new TokenAwarePolicy(new DCAwareRoundRobinPolicy()))
-                    .build();
+            try {
+                cluster = Cluster
+                        .builder()
+                        .addContactPoint(CassandraClientUtilities.getEth0Ip())
+                        .withRetryPolicy(DefaultRetryPolicy.INSTANCE)
+                        .withLoadBalancingPolicy(
+                                new TokenAwarePolicy(new DCAwareRoundRobinPolicy()))
+                        .build();
+            } catch ( SocketException e ) {
+                System.out.println("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+            }
             session = cluster.connect("schema1");
 
             // Create table

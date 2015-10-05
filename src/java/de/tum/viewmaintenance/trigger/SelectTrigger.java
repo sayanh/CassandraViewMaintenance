@@ -10,6 +10,7 @@ import de.tum.viewmaintenance.view_table_structure.Table;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.SocketException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -117,7 +118,12 @@ public class SelectTrigger extends TriggerProcess {
 
         query.append(" ) " + valuesPartQuery.toString() + " )");
         logger.debug("******* Query : " + query.toString());
-        isResultSuccessful = CassandraClientUtilities.commandExecution("localhost", query.toString());
+        try {
+            isResultSuccessful = CassandraClientUtilities.commandExecution(
+                    CassandraClientUtilities.getEth0Ip(), query.toString());
+        } catch ( SocketException e ) {
+            logger.debug("Error !!" + ViewMaintenanceUtilities.getStackTrace(e));
+        }
         TriggerResponse response = new TriggerResponse();
         response.setIsSuccess(true);
         response.setIsSuccess(isResultSuccessful);
@@ -204,7 +210,12 @@ public class SelectTrigger extends TriggerProcess {
         // TODO: Need to configure primary keys for both base table and view table. Right now it is hardcoded.
         query.append(" " + whereString.replace("user_id", "k"));
         logger.debug("******* Query : " + query.toString());
-        isResultSuccessful = CassandraClientUtilities.commandExecution("localhost", query.toString());
+        try {
+            isResultSuccessful = CassandraClientUtilities.commandExecution(
+                    CassandraClientUtilities.getEth0Ip(), query.toString());
+        } catch ( SocketException e ) {
+            logger.debug("Error !!" + ViewMaintenanceUtilities.getStackTrace(e));
+        }
         TriggerResponse response = new TriggerResponse();
 //        response.setIsSuccess(true);
         response.setIsSuccess(isResultSuccessful);
@@ -230,7 +241,7 @@ public class SelectTrigger extends TriggerProcess {
         try {
             String deleteQuery = "delete from " + request.getViewKeyspace() + "." + table.getName() + " " + whereString;
             logger.debug("Delete query for select view maintenance : " + deleteQuery);
-            isResultSucc = CassandraClientUtilities.commandExecution("localhost", deleteQuery);
+            isResultSucc = CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), deleteQuery);
             response.setIsSuccess(isResultSucc);
         } catch (Exception e) {
             logger.error("Error !!!" + ViewMaintenanceUtilities.getStackTrace(e));

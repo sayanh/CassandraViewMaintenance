@@ -17,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.management.Query;
+import java.net.SocketException;
 import java.util.*;
 
 /**
@@ -169,8 +170,13 @@ public class InnerJoinOperation extends GenericOperation {
 
         logger.debug("#### reverseJoinRecordFetchQuery  || " + reverseJoinRecordFetchQuery);
 
-        List<Row> existingReverseJoinRecords = CassandraClientUtilities.commandExecution("localhost",
-                reverseJoinRecordFetchQuery);
+        List<Row> existingReverseJoinRecords = null;
+        try {
+            existingReverseJoinRecords = CassandraClientUtilities.commandExecution(
+                    CassandraClientUtilities.getEth0Ip(), reverseJoinRecordFetchQuery);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
         boolean insertToInnerJoinEligible = true;
         List<String> columnNamesCurrentJK = null;
         List<Object> objectsCurrentJK = null;
@@ -217,7 +223,12 @@ public class InnerJoinOperation extends GenericOperation {
                         operationViewTables.get(0).getName()).values(columnNamesOldJoinKey.toArray(new String
                         [columnNamesOldJoinKey.size()]), objectsOldJoinKey.toArray());
 
-                CassandraClientUtilities.commandExecution("localhost", insertIntoInnerJoinOldJoinKeyDataQuery);
+                try {
+                    CassandraClientUtilities.commandExecution(
+                            CassandraClientUtilities.getEth0Ip(), insertIntoInnerJoinOldJoinKeyDataQuery);
+                } catch ( SocketException e ) {
+                    logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+                }
             } else {
                 logger.debug("### Old join key does not satisfy the inner join rules now!!!");
 
@@ -237,7 +248,11 @@ public class InnerJoinOperation extends GenericOperation {
 
                     logger.debug("#### Cache table config :: " + cacheTable);
 
-                    ViewMaintenanceUtilities.storeJoinRowInCache(existingInnerJoinOldRecord, cacheTable);
+                    try {
+                        ViewMaintenanceUtilities.storeJoinRowInCache(existingInnerJoinOldRecord, cacheTable);
+                    } catch ( SocketException e ) {
+                        logger.error("Error !!! " + ViewMaintenanceUtilities.getStackTrace(e));
+                    }
 
                     logger.debug("#### Old join key needs to be deleted as it no longer satisfies inner join rules");
 
@@ -257,7 +272,11 @@ public class InnerJoinOperation extends GenericOperation {
 
             logger.debug("#### Insert query in innerjoin view table :: " + insertQuery);
 
-            CassandraClientUtilities.commandExecution("localhost", insertQuery);
+            try {
+                CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), insertQuery);
+            } catch ( SocketException e ) {
+                logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+            }
 
         } else {
             Row existingRecordInnerJoinTable = getExistingRecordFromInnerJoinTable(innerJoinViewPrimaryKey);
@@ -294,7 +313,13 @@ public class InnerJoinOperation extends GenericOperation {
 
         logger.debug("#### Existing Record Query :: " + existingRecordQuery);
 
-        List<Row> existingRows = CassandraClientUtilities.commandExecution("localhost", existingRecordQuery);
+        List<Row> existingRows = null;
+        try {
+            existingRows = CassandraClientUtilities.commandExecution(
+                    CassandraClientUtilities.getEth0Ip(), existingRecordQuery);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
 
         if ( existingRows.size() > 0 ) {
@@ -414,7 +439,11 @@ public class InnerJoinOperation extends GenericOperation {
 
 
         logger.debug("#### Delete query for inner join table :: " + deleteQuery);
-        CassandraClientUtilities.deleteCommandExecution("localhost", deleteQuery);
+        try {
+            CassandraClientUtilities.deleteCommandExecution(CassandraClientUtilities.getEth0Ip(), deleteQuery);
+        } catch ( SocketException e ) {
+            logger.error("Error !!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
     }
 
 
@@ -433,8 +462,13 @@ public class InnerJoinOperation extends GenericOperation {
                     operationViewTables.get(0).getName()).where(QueryBuilder.eq(innerJoinPrimaryKey.getColumnName(),
                     innerJoinPrimaryKey.getColumnValueInString()));
         }
-        List<Row> existingRecords = CassandraClientUtilities.commandExecution("localhost",
-                existingInnerJoinRecordQuery);
+        List<Row> existingRecords = null;
+        try {
+            existingRecords = CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(),
+                    existingInnerJoinRecordQuery);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
         if ( existingRecords != null && existingRecords.size() > 0 ) {
 
             existingRecordInnerJoinTable = existingRecords.get(0);
@@ -493,10 +527,19 @@ public class InnerJoinOperation extends GenericOperation {
 
                 logger.debug("##### insertIntoInnerJoinOldJoinKeyDataQuery :: " + insertIntoInnerJoinOldJoinKeyDataQuery);
 
-                CassandraClientUtilities.commandExecution("localhost", insertIntoInnerJoinOldJoinKeyDataQuery);
+                try {
+                    CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), insertIntoInnerJoinOldJoinKeyDataQuery);
+                } catch ( SocketException e ) {
+                    logger.error("Error !!! " + ViewMaintenanceUtilities.getStackTrace(e));
+                }
             } else {
-                Row existingRowInnerJoinTable = ViewMaintenanceUtilities.getExistingRecordIfExists(innerJoinPrimaryKey,
-                        operationViewTables.get(0));
+                Row existingRowInnerJoinTable = null;
+                try {
+                    existingRowInnerJoinTable = ViewMaintenanceUtilities.getExistingRecordIfExists(innerJoinPrimaryKey,
+                            operationViewTables.get(0));
+                } catch ( SocketException e ) {
+                    logger.error("Error !!! " + ViewMaintenanceUtilities.getStackTrace(e));
+                }
 
                 logger.debug("#### Existing inner join record which does not qualify to be in inner join :: " + existingRowInnerJoinTable);
 
@@ -511,15 +554,24 @@ public class InnerJoinOperation extends GenericOperation {
 
                     logger.debug("#### Cache table config :: " + cacheTable);
 
-                    ViewMaintenanceUtilities.storeJoinRowInCache(existingRowInnerJoinTable, cacheTable);
+                    try {
+                        ViewMaintenanceUtilities.storeJoinRowInCache(existingRowInnerJoinTable, cacheTable);
+                    } catch ( SocketException e ) {
+                        logger.error("Error !!! " + ViewMaintenanceUtilities.getStackTrace(e));
+                    }
 
                     deleteInnerJoinTable(innerJoinPrimaryKey);
                 }
             }
 
         } else {
-            Row existingRowInnerJoinTable = ViewMaintenanceUtilities.getExistingRecordIfExists(innerJoinPrimaryKey,
-                    operationViewTables.get(0));
+            Row existingRowInnerJoinTable = null;
+            try {
+                existingRowInnerJoinTable = ViewMaintenanceUtilities.getExistingRecordIfExists(innerJoinPrimaryKey,
+                        operationViewTables.get(0));
+            } catch ( SocketException e ) {
+                logger.error("Error !!! " + ViewMaintenanceUtilities.getStackTrace(e));
+            }
 
             logger.debug("#### Existing inner join record which is not there in Reverse join :: " + existingRowInnerJoinTable);
 
@@ -534,7 +586,11 @@ public class InnerJoinOperation extends GenericOperation {
 
                 logger.debug("#### Cache table config :: " + cacheTable);
 
-                ViewMaintenanceUtilities.storeJoinRowInCache(existingRowInnerJoinTable, cacheTable);
+                try {
+                    ViewMaintenanceUtilities.storeJoinRowInCache(existingRowInnerJoinTable, cacheTable);
+                } catch ( SocketException e ) {
+                    logger.error("Error !!! " + ViewMaintenanceUtilities.getStackTrace(e));
+                }
                 deleteInnerJoinTable(innerJoinPrimaryKey);
             }
         }

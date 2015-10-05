@@ -11,6 +11,7 @@ import de.tum.viewmaintenance.view_table_structure.Table;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.SocketException;
 import java.util.*;
 
 /**
@@ -53,7 +54,13 @@ public class PreAggregationTrigger extends TriggerProcess {
                 request.getViewKeyspace(), request.getViewTable().getName()).where(QueryBuilder.eq(
                 "colaggkey_x", colAggKey));
 
-        List<Row> existingRecordReverseJoinView  = CassandraClientUtilities.commandExecution("localhost", existingRecordReverseJoinViewQuery);
+        List<Row> existingRecordReverseJoinView  = null;
+        try {
+            existingRecordReverseJoinView = CassandraClientUtilities.commandExecution(
+                    CassandraClientUtilities.getEth0Ip(), existingRecordReverseJoinViewQuery);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
         logger.debug("Pre-aggregation | insertTrigger | existing record: " + existingRecordReverseJoinView);
 
@@ -125,7 +132,7 @@ public class PreAggregationTrigger extends TriggerProcess {
                     .value(viewTable.getBasedOn(), colAggKey).value( request.getBaseTableKeySpace() + "_" +
                             request.getBaseTableName(), mapViewTable);
             logger.debug("insertIntoPreAggregationViewTable Query {} ", insertQueryStatement);
-            CassandraClientUtilities.commandExecution("localhost", insertQueryStatement);
+            CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), insertQueryStatement);
             isResultSucc = true;
         } catch (Exception e) {
             logger.debug("Error !!" + ViewMaintenanceUtilities.getStackTrace(e));
@@ -147,7 +154,8 @@ public class PreAggregationTrigger extends TriggerProcess {
             Statement selectPreAggregationOldColAggKey = QueryBuilder.select()
                 .from(request.getViewKeyspace(), request.getViewTable().getName())
                     .where(QueryBuilder.eq(request.getViewTable().getBasedOn(), colAggKey));
-            Row existingRecord = CassandraClientUtilities.commandExecution("localhost", selectPreAggregationOldColAggKey).get(0);
+            Row existingRecord = CassandraClientUtilities.commandExecution(
+                    CassandraClientUtilities.getEth0Ip(), selectPreAggregationOldColAggKey).get(0);
             Map<Integer, String> existingRecordStr = existingRecord.getMap(colNameInViewTable, Integer.class, String.class);
 
             Map<Integer, String> finalRecordMap = new HashMap<>();
@@ -161,7 +169,7 @@ public class PreAggregationTrigger extends TriggerProcess {
                     .with(QueryBuilder.set(colNameInViewTable, finalRecordMap)).
                             where(QueryBuilder.eq(request.getViewTable().getBasedOn(), colAggKey));
             logger.debug("Update(delete) pre-aggregation view using query : " + updateStatement);
-            CassandraClientUtilities.commandExecution("localhost", updateStatement);
+            CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), updateStatement);
             isDeleteSucc = true;
         } catch (Exception e) {
             logger.debug("Error !!" + ViewMaintenanceUtilities.getStackTrace(e));
@@ -175,7 +183,12 @@ public class PreAggregationTrigger extends TriggerProcess {
         Statement selectDeltaViewQuery = QueryBuilder.select().from(deltaTableKeyspace, deltaTableName)
                 .where(QueryBuilder.eq("user_id", Integer.parseInt(primaryKeyBaseTable)));
         logger.debug("previousAggKeyIfOld | selectDeltaViewQuery | " + selectDeltaViewQuery);
-        Row record = CassandraClientUtilities.commandExecution("localhost", selectDeltaViewQuery).get(0);
+        Row record = null;
+        try {
+            record = CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), selectDeltaViewQuery).get(0);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
         logger.debug("previousAggKeyIfOld | record | " + record);
         String colAggKeyValue_last = record.getString("colaggkey_x_last");
         String colAggKeyValue_cur = record.getString("colaggkey_x_cur");
@@ -221,7 +234,7 @@ public class PreAggregationTrigger extends TriggerProcess {
                     .with(QueryBuilder.set(colNameInViewTable, finalRecordMap))
                     .where(QueryBuilder.eq(request.getViewTable().getBasedOn(), colAggKey));
             logger.debug("Update pre-aggregation join view using query : " + updateStatement);
-            CassandraClientUtilities.commandExecution("localhost", updateStatement);
+            CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), updateStatement);
             isResultSucc = true;
         } catch (Exception e) {
             logger.debug("Error !!" + ViewMaintenanceUtilities.getStackTrace(e));

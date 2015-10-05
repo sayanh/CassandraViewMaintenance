@@ -101,7 +101,8 @@ public class MaxTrigger extends TriggerProcess {
 
 
             logger.debug("******* View table insertion query : " + insertQueryToView);
-            isResultSuccessful = CassandraClientUtilities.commandExecution("localhost", insertQueryToView);
+            isResultSuccessful = CassandraClientUtilities.commandExecution(
+                    CassandraClientUtilities.getEth0Ip(), insertQueryToView);
 
         } catch (Exception e) {
             e.printStackTrace();

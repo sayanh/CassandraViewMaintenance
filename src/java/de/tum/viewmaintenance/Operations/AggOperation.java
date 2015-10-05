@@ -19,6 +19,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.SocketException;
 import java.util.*;
 
 /**
@@ -91,186 +92,194 @@ public class AggOperation extends GenericOperation {
 
     @Override
     public boolean insertTrigger(TriggerRequest triggerRequest) {
+        try {
+            this.deltaTableRecord = triggerRequest.getCurrentRecordInDeltaView();
+            logger.debug("##### Entering insert trigger for Aggregate Operations!!! ");
+            logger.debug("##### Received elements #####");
+            logger.debug("##### Table structure involved: {}", this.operationViewTables);
+            logger.debug("##### Delta table record {}", this.deltaTableRecord);
+            logger.debug("##### Input tables structure {}", this.inputViewTables);
+            logger.debug("##### Trigger request :: " + triggerRequest);
 
-        this.deltaTableRecord = triggerRequest.getCurrentRecordInDeltaView();
-        logger.debug("##### Entering insert trigger for Aggregate Operations!!! ");
-        logger.debug("##### Received elements #####");
-        logger.debug("##### Table structure involved: {}", this.operationViewTables);
-        logger.debug("##### Delta table record {}", this.deltaTableRecord);
-        logger.debug("##### Input tables structure {}", this.inputViewTables);
-        logger.debug("##### Trigger request :: " + triggerRequest);
+            Table preAggTable = inputViewTables.get(0);
+            String functionName = "";
+            String targetColName = "";
+            String colAggKey = "";
+            Map<String, ColumnDefinition> preAggDesc = ViewMaintenanceUtilities.getTableDefinitition(preAggTable.getKeySpace(),
+                    preAggTable.getName());
+            Map<String, List<String>> userData = new HashMap<>();
+            // Column Name Mapped to -> internalCassandraType, value, isPrimaryKey
 
-        Table preAggTable = inputViewTables.get(0);
-        String functionName = "";
-        String targetColName = "";
-        String colAggKey = "";
-        Map<String, ColumnDefinition> preAggDesc = ViewMaintenanceUtilities.getTableDefinitition(preAggTable.getKeySpace(),
-                preAggTable.getName());
-        Map<String, List<String>> userData = new HashMap<>();
-        // Column Name Mapped to -> internalCassandraType, value, isPrimaryKey
+            PrimaryKey preAggPKey = null;
 
-        PrimaryKey preAggPKey = null;
-
-        LinkedTreeMap dataJson = triggerRequest.getDataJson();
-        Set keySet = dataJson.keySet();
-
-
-        // Preparing the columnMap with current data
+            LinkedTreeMap dataJson = triggerRequest.getDataJson();
+            Set keySet = dataJson.keySet();
 
 
-        logger.debug("#### Description of pre agg desc :: " + preAggDesc);
+            // Preparing the columnMap with current data
 
-        for ( Map.Entry<String, ColumnDefinition> columnDefinitionEntry : preAggDesc.entrySet() ) {
-            String derivedPrefix = columnDefinitionEntry.getKey().substring(0, columnDefinitionEntry.getKey()
-                    .indexOf("_"));
-            String derivedColumnName = columnDefinitionEntry.getKey().substring(columnDefinitionEntry.getKey()
-                    .indexOf("_") + 1);
-            if ( AVAILABLE_FUNCS.contains(derivedPrefix) ) {
-                functionName = derivedPrefix;
-                targetColName = derivedColumnName;
-                logger.debug("#### Checking -- functionName: {} | targetColName: {}", functionName, targetColName);
-            }
-            Iterator dataIter = keySet.iterator();
-            while ( dataIter.hasNext() ) {
-                String tempDataKey = (String) dataIter.next();
+
+            logger.debug("#### Description of pre agg desc :: " + preAggDesc);
+
+            for ( Map.Entry<String, ColumnDefinition> columnDefinitionEntry : preAggDesc.entrySet() ) {
+                String derivedPrefix = columnDefinitionEntry.getKey().substring(0, columnDefinitionEntry.getKey()
+                        .indexOf("_"));
+                String derivedColumnName = columnDefinitionEntry.getKey().substring(columnDefinitionEntry.getKey()
+                        .indexOf("_") + 1);
+                if ( AVAILABLE_FUNCS.contains(derivedPrefix) ) {
+                    functionName = derivedPrefix;
+                    targetColName = derivedColumnName;
+                    logger.debug("#### Checking -- functionName: {} | targetColName: {}", functionName, targetColName);
+                }
+                Iterator dataIter = keySet.iterator();
+                while ( dataIter.hasNext() ) {
+                    String tempDataKey = (String) dataIter.next();
 //                logger.debug("Key: " + tempDataKey);
 //                logger.debug("Value: " + dataJson.get(tempDataKey));
 
-                if ( columnDefinitionEntry.getValue().isPartitionKey() && tempDataKey.equalsIgnoreCase(derivedColumnName) ) {
+                    if ( columnDefinitionEntry.getValue().isPartitionKey() && tempDataKey.equalsIgnoreCase(derivedColumnName) ) {
+                        List<String> tempList = new ArrayList<>(); //Format: internalCassandraType, value, isPrimaryKey
+                        tempList.add(columnDefinitionEntry.getValue().type.toString());
+                        tempList.add(((String) dataJson.get(tempDataKey)).replaceAll("'", ""));
+                        tempList.add("true");
+                        colAggKey = derivedColumnName;
+                        userData.put(columnDefinitionEntry.getKey(), tempList);
+
+                        preAggPKey = new PrimaryKey(columnDefinitionEntry.getKey(), columnDefinitionEntry.getValue().type
+                                .toString(), ((String) dataJson.get(tempDataKey)).replaceAll("'", ""));
+                        logger.debug("### Primary key for pre agg table :: " + preAggPKey);
+                    }
+                }
+
+                if ( !columnDefinitionEntry.getValue().isPartitionKey() ) {
                     List<String> tempList = new ArrayList<>(); //Format: internalCassandraType, value, isPrimaryKey
                     tempList.add(columnDefinitionEntry.getValue().type.toString());
-                    tempList.add(((String) dataJson.get(tempDataKey)).replaceAll("'", ""));
-                    tempList.add("true");
-                    colAggKey = derivedColumnName;
+                    tempList.add("");
+                    tempList.add("false");
                     userData.put(columnDefinitionEntry.getKey(), tempList);
-
-                    preAggPKey = new PrimaryKey(columnDefinitionEntry.getKey(), columnDefinitionEntry.getValue().type
-                            .toString(), ((String) dataJson.get(tempDataKey)).replaceAll("'", ""));
-                    logger.debug("### Primary key for pre agg table :: " + preAggPKey);
                 }
             }
+            logger.debug("### Tentative userdata :: " + userData);
 
-            if ( !columnDefinitionEntry.getValue().isPartitionKey() ) {
-                List<String> tempList = new ArrayList<>(); //Format: internalCassandraType, value, isPrimaryKey
-                tempList.add(columnDefinitionEntry.getValue().type.toString());
-                tempList.add("");
-                tempList.add("false");
-                userData.put(columnDefinitionEntry.getKey(), tempList);
-            }
-        }
-        logger.debug("### Tentative userdata :: " + userData);
-
-        Row existingRecordPreAgg = ViewMaintenanceUtilities.getExistingRecordIfExists(preAggPKey, preAggTable);
-        Row existingRecordAggView = ViewMaintenanceUtilities.getExistingRecordIfExists(preAggPKey,
-                operationViewTables.get(0));
+            Row existingRecordPreAgg = ViewMaintenanceUtilities.getExistingRecordIfExists(preAggPKey, preAggTable);
+            Row existingRecordAggView = ViewMaintenanceUtilities.getExistingRecordIfExists(preAggPKey,
+                    operationViewTables.get(0));
 
 
-        // Check if the record exists in pre agg view
-        if ( existingRecordPreAgg == null ) {
-            logger.debug("#### Record does not exist in pre agg view table...");
+            // Check if the record exists in pre agg view
+            if ( existingRecordPreAgg == null ) {
+                logger.debug("#### Record does not exist in pre agg view table...");
 
-            // Situation:
-            // Either the record is already there in agg table or not there at all
-            // If the record is already there then it needs to be removed from the agg view table.
-            // If the record is not there in there in the agg view table nothing needs to be done.
+                // Situation:
+                // Either the record is already there in agg table or not there at all
+                // If the record is already there then it needs to be removed from the agg view table.
+                // If the record is not there in there in the agg view table nothing needs to be done.
 
-            // Check if the record exists in agg view
-            if ( existingRecordAggView != null ) {
-                // Delete the record from the agg view table
-                deleteRecordFromAggViewTable(preAggPKey);
-            }
+                // Check if the record exists in agg view
+                if ( existingRecordAggView != null ) {
+                    // Delete the record from the agg view table
+                    deleteRecordFromAggViewTable(preAggPKey);
+                }
 
 
-        } else {
-            logger.debug("#### Record exists in pre agg view table!! ");
-            List<String> targetColData = userData.get(functionName + "_" + targetColName);
-            targetColData.set(1, existingRecordPreAgg.getInt(functionName + "_" + targetColName) + "");
-            userData.put(functionName + "_" + targetColName, targetColData);
+            } else {
+                logger.debug("#### Record exists in pre agg view table!! ");
+                List<String> targetColData = userData.get(functionName + "_" + targetColName);
+                targetColData.set(1, existingRecordPreAgg.getInt(functionName + "_" + targetColName) + "");
+                userData.put(functionName + "_" + targetColName, targetColData);
 
-            logger.debug("#### User data with values :: " + userData);
+                logger.debug("#### User data with values :: " + userData);
 
 //            Function function = (Function) ((GreaterThan) havingExpression).getLeftExpression();
 //            Expression expression = function.getParameters().getExpressions().get(0)
 
-            logger.debug("### Having expression :: " + havingExpression);
+                logger.debug("### Having expression :: " + havingExpression);
 
-            // Checking if the record satisfies having clause
-            if ( ViewMaintenanceUtilities.checkHavingExpression(havingExpression, targetColData) ) {
-                // Insert the record into the agg view table
-                insertIntoAggViewTable(userData);
-            } else {
-                // Delete the record from the agg view table
-                if ( existingRecordPreAgg != null ) {
-
-                    deleteRecordFromAggViewTable(preAggPKey);
-                }
-            }
-
-
-        }
-
-        PrimaryKey oldPreAggPKey = null;
-        List<String> aggregationKeyData = new ArrayList<>();
-        aggregationKeyData.add(colAggKey); // Aggregation key column name
-        aggregationKeyData.add(userData.get(preAggPKey.getColumnName()).get(0)); // Aggregation column type
-
-        logger.debug("### Aggregation key data :: " + aggregationKeyData);
-        String statusChangeInColAggKey = ViewMaintenanceUtilities.checkForChangeInAggregationKeyInDeltaView(aggregationKeyData,
-                deltaTableRecord);
-
-        if ( statusChangeInColAggKey.equalsIgnoreCase("changed") ) {
-
-
-            // If there is a change in the colAggKey then change the details for the old agg key
-            if ( preAggPKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
-                String oldAggKeyValStr = deltaTableRecord.getInt(colAggKey + DeltaViewTrigger.LAST) + "";
-                oldPreAggPKey = new PrimaryKey(preAggPKey.getColumnName(), preAggPKey.getColumnInternalCassType(),
-                        oldAggKeyValStr);
-            } else if ( preAggPKey.getColumnJavaType().equalsIgnoreCase("String") ) {
-                String oldAggKeyValStr = deltaTableRecord.getString(colAggKey + DeltaViewTrigger.LAST);
-                oldPreAggPKey = new PrimaryKey(preAggPKey.getColumnName(), preAggPKey.getColumnInternalCassType(),
-                        oldAggKeyValStr);
-            }
-
-            Row existingOldAggKeyVal = ViewMaintenanceUtilities.getExistingRecordIfExists(oldPreAggPKey, operationViewTables.get(0));
-            logger.debug("### Existing value for old Agg key in Agg View : " + existingOldAggKeyVal);
-            Row existingOldPreAggKeyVal = ViewMaintenanceUtilities.getExistingRecordIfExists(oldPreAggPKey,
-                    preAggTable);
-            logger.debug("### Existing value for old Agg key in PreAgg View : " + existingOldPreAggKeyVal);
-
-            // Checking whether the old agg key exists in agg view table
-            if ( existingOldPreAggKeyVal != null ) {
-                Map<String, List<String>> userDataWithOldAggKey = userData;
-                List<String> targetOldAggData = userData.get(oldPreAggPKey.getColumnName());
-                if ( oldPreAggPKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
-
-                    targetOldAggData.set(1, existingOldPreAggKeyVal.getInt(oldPreAggPKey.getColumnName()) + "");
-                } else if ( oldPreAggPKey.getColumnJavaType().equalsIgnoreCase("String") ) {
-                    targetOldAggData.set(1, existingOldPreAggKeyVal.getString(oldPreAggPKey.getColumnName()));
-                }
-                logger.debug("#### Target old col agg key :: " + targetOldAggData);
-
-                userDataWithOldAggKey.put(oldPreAggPKey.getColumnName(), targetOldAggData);
-
-                List<String> functionColForOldAggKey = userDataWithOldAggKey.get(functionName + "_" + targetColName);
-                functionColForOldAggKey.set(1, existingOldPreAggKeyVal.getInt(functionName + "_" + targetColName) + "");
-                userDataWithOldAggKey.put(functionName + "_" + targetColName, functionColForOldAggKey);
-
-                logger.debug("#### functionColForOldAggKey : " + functionColForOldAggKey);
-                logger.debug("#### userDataWithOldAggKey : " + userDataWithOldAggKey);
-
-                if ( ViewMaintenanceUtilities.checkHavingExpression(havingExpression, targetOldAggData) ) {
-                    logger.debug("### Inserting the old agg key as it satisfies having clause!!");
-                    insertIntoAggViewTable(userDataWithOldAggKey);
+                // Checking if the record satisfies having clause
+                if ( ViewMaintenanceUtilities.checkHavingExpression(havingExpression, targetColData) ) {
+                    // Insert the record into the agg view table
+                    insertIntoAggViewTable(userData);
                 } else {
-                    if ( existingOldAggKeyVal != null ) {
-                        logger.debug("### Deleting the old col agg key, primary : " + oldPreAggPKey);
+                    // Delete the record from the agg view table
+                    if ( existingRecordPreAgg != null ) {
 
-                        deleteRecordFromAggViewTable(oldPreAggPKey);
+                        deleteRecordFromAggViewTable(preAggPKey);
                     }
                 }
+
+
             }
 
+            PrimaryKey oldPreAggPKey = null;
+            List<String> aggregationKeyData = new ArrayList<>();
+            aggregationKeyData.add(colAggKey); // Aggregation key column name
+            aggregationKeyData.add(userData.get(preAggPKey.getColumnName()).get(0)); // Aggregation column type
+
+            logger.debug("### Aggregation key data :: " + aggregationKeyData);
+            String statusChangeInColAggKey = ViewMaintenanceUtilities.checkForChangeInAggregationKeyInDeltaView(aggregationKeyData,
+                    deltaTableRecord);
+
+            if ( statusChangeInColAggKey.equalsIgnoreCase("changed") ) {
+
+
+                // If there is a change in the colAggKey then change the details for the old agg key
+                if ( preAggPKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+                    String oldAggKeyValStr = deltaTableRecord.getInt(colAggKey + DeltaViewTrigger.LAST) + "";
+                    oldPreAggPKey = new PrimaryKey(preAggPKey.getColumnName(), preAggPKey.getColumnInternalCassType(),
+                            oldAggKeyValStr);
+                } else if ( preAggPKey.getColumnJavaType().equalsIgnoreCase("String") ) {
+                    String oldAggKeyValStr = deltaTableRecord.getString(colAggKey + DeltaViewTrigger.LAST);
+                    oldPreAggPKey = new PrimaryKey(preAggPKey.getColumnName(), preAggPKey.getColumnInternalCassType(),
+                            oldAggKeyValStr);
+                }
+
+                Row existingOldAggKeyVal = null;
+
+                existingOldAggKeyVal = ViewMaintenanceUtilities
+                        .getExistingRecordIfExists(oldPreAggPKey, operationViewTables.get(0));
+
+                logger.debug("### Existing value for old Agg key in Agg View : " + existingOldAggKeyVal);
+                Row existingOldPreAggKeyVal = ViewMaintenanceUtilities.getExistingRecordIfExists(oldPreAggPKey,
+                        preAggTable);
+
+                logger.debug("### Existing value for old Agg key in PreAgg View : " + existingOldPreAggKeyVal);
+
+                // Checking whether the old agg key exists in agg view table
+                if ( existingOldPreAggKeyVal != null ) {
+                    Map<String, List<String>> userDataWithOldAggKey = userData;
+                    List<String> targetOldAggData = userData.get(oldPreAggPKey.getColumnName());
+                    if ( oldPreAggPKey.getColumnJavaType().equalsIgnoreCase("Integer") ) {
+
+                        targetOldAggData.set(1, existingOldPreAggKeyVal.getInt(oldPreAggPKey.getColumnName()) + "");
+                    } else if ( oldPreAggPKey.getColumnJavaType().equalsIgnoreCase("String") ) {
+                        targetOldAggData.set(1, existingOldPreAggKeyVal.getString(oldPreAggPKey.getColumnName()));
+                    }
+                    logger.debug("#### Target old col agg key :: " + targetOldAggData);
+
+                    userDataWithOldAggKey.put(oldPreAggPKey.getColumnName(), targetOldAggData);
+
+                    List<String> functionColForOldAggKey = userDataWithOldAggKey.get(functionName + "_" + targetColName);
+                    functionColForOldAggKey.set(1, existingOldPreAggKeyVal.getInt(functionName + "_" + targetColName) + "");
+                    userDataWithOldAggKey.put(functionName + "_" + targetColName, functionColForOldAggKey);
+
+                    logger.debug("#### functionColForOldAggKey : " + functionColForOldAggKey);
+                    logger.debug("#### userDataWithOldAggKey : " + userDataWithOldAggKey);
+
+                    if ( ViewMaintenanceUtilities.checkHavingExpression(havingExpression, targetOldAggData) ) {
+                        logger.debug("### Inserting the old agg key as it satisfies having clause!!");
+                        insertIntoAggViewTable(userDataWithOldAggKey);
+                    } else {
+                        if ( existingOldAggKeyVal != null ) {
+                            logger.debug("### Deleting the old col agg key, primary : " + oldPreAggPKey);
+
+                            deleteRecordFromAggViewTable(oldPreAggPKey);
+                        }
+                    }
+                }
+
+            }
+        } catch ( SocketException e ) {
+            logger.debug("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
         }
 
 
@@ -299,7 +308,11 @@ public class AggOperation extends GenericOperation {
 
         logger.debug("### Insert query into Agg View :: " + insertIntoAggViewQuery);
 
-        CassandraClientUtilities.commandExecution("localhost", insertIntoAggViewQuery);
+        try {
+            CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), insertIntoAggViewQuery);
+        } catch ( SocketException e ) {
+            logger.error("Error !!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
     }
 
@@ -320,7 +333,11 @@ public class AggOperation extends GenericOperation {
 
         logger.debug("### Delete query from agg view table " + deleteQueryFromAggView);
 
-        CassandraClientUtilities.commandExecution("localhost", deleteQueryFromAggView);
+        try {
+            CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), deleteQueryFromAggView);
+        } catch ( SocketException e ) {
+            logger.debug("Error !!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
     }
 
@@ -380,12 +397,17 @@ public class AggOperation extends GenericOperation {
 
         }
 
-        Row existingRecordInPreAgg = ViewMaintenanceUtilities.getExistingRecordIfExists(preAggPrimaryKey, preAggTableConfig);
+        Row existingRecordInPreAgg = null;
+        try {
+            existingRecordInPreAgg = ViewMaintenanceUtilities.getExistingRecordIfExists(preAggPrimaryKey, preAggTableConfig);
+        } catch ( SocketException e ) {
+            logger.error("Error !!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
         logger.debug("#### existingRecordInPreAgg :: " + existingRecordInPreAgg);
         Map<String, List<String>> userData = null;
 
-        if (existingRecordInPreAgg != null) {
+        if ( existingRecordInPreAgg != null ) {
             userData = new HashMap<>();
             // Format::
             // Key: Name of the column
@@ -396,13 +418,13 @@ public class AggOperation extends GenericOperation {
 
                 String javaType = ViewMaintenanceUtilities.getJavaTypeFromCassandraType(aggTableEntry.getValue().type.toString());
 
-                if (javaType.equalsIgnoreCase("Integer")) {
+                if ( javaType.equalsIgnoreCase("Integer") ) {
                     tempList.add(existingRecordInPreAgg.getInt(aggTableEntry.getKey()) + "");
-                } else if (javaType.equalsIgnoreCase("String")) {
-                    tempList.add(existingRecordInPreAgg.getString(aggTableEntry.getKey())   );
+                } else if ( javaType.equalsIgnoreCase("String") ) {
+                    tempList.add(existingRecordInPreAgg.getString(aggTableEntry.getKey()));
                 }
 
-                if (aggTableEntry.getValue().isPartitionKey()) {
+                if ( aggTableEntry.getValue().isPartitionKey() ) {
                     tempList.add("true");
                 } else {
                     tempList.add("false");
@@ -414,8 +436,6 @@ public class AggOperation extends GenericOperation {
             logger.debug("#### userData aggViewTable:: " + userData);
             insertIntoAggViewTable(userData);
         }
-
-
 
 
         return false;

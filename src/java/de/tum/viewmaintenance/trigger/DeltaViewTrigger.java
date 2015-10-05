@@ -12,6 +12,7 @@ import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.SocketException;
 import java.util.*;
 
 /**
@@ -91,7 +92,8 @@ public class DeltaViewTrigger extends TriggerProcess {
 
 
             logger.debug("Deltaview | insertTrigger | selectQuery : " + selectQuery);
-            List<Row> existingRecordList = CassandraClientUtilities.commandExecution("localhost", selectQuery);
+            List<Row> existingRecordList = CassandraClientUtilities.commandExecution(
+                    CassandraClientUtilities.getEth0Ip(), selectQuery);
             logger.debug("Result | existing row | " + existingRecordList);
 
             if ( existingRecordList != null && existingRecordList.size() > 0 ) {
@@ -157,7 +159,11 @@ public class DeltaViewTrigger extends TriggerProcess {
                 currentDataMap.get(primaryKey).getValue() + "", true));
 
         logger.debug("updateExistingRow : " + updateQuery.toString());
-        CassandraClientUtilities.commandExecution("localhost", updateQuery.toString());
+        try {
+            CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), updateQuery.toString());
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
     }
 
     /**
@@ -165,7 +171,7 @@ public class DeltaViewTrigger extends TriggerProcess {
      **/
 
     // TODO: Remove primaryKey from the signature as it is never used.
-    private static void insertNewRow(TriggerRequest request, Map<String, Column> currentDataMap, String primaryKey) {
+    private static void insertNewRow(TriggerRequest request, Map<String, Column> currentDataMap, String primaryKey) throws SocketException {
 
         StringBuffer insertQuery = new StringBuffer("insert into " + request.getBaseTableKeySpace()
                 + "." + request.getBaseTableName() + DELTAVIEW_SUFFIX + " ( ");
@@ -194,7 +200,7 @@ public class DeltaViewTrigger extends TriggerProcess {
         insertQuery.append(") " + valuesPartInsertQuery + " ) ");
 
         logger.debug("insertNewRow : " + insertQuery);
-        CassandraClientUtilities.commandExecution("localhost", insertQuery.toString());
+        CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), insertQuery.toString());
 
     }
 
@@ -287,7 +293,8 @@ public class DeltaViewTrigger extends TriggerProcess {
             updateQueryToDeltaView.append(" " + whereString);
 
             logger.debug(" UpdateQuery to Delta View: " + updateQueryToDeltaView);
-            isSuccess = CassandraClientUtilities.commandExecution("localhost", updateQueryToDeltaView.toString());
+            isSuccess = CassandraClientUtilities.commandExecution(
+                    CassandraClientUtilities.getEth0Ip(), updateQueryToDeltaView.toString());
 
         } catch ( Exception e ) {
             logger.debug("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
@@ -362,7 +369,7 @@ public class DeltaViewTrigger extends TriggerProcess {
             }
 
             logger.debug(" DeleteQuery to Delta View: " + deleteQuery);
-            CassandraClientUtilities.commandExecution("localhost", deleteQuery);
+            CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), deleteQuery);
             response.setIsSuccess(true);
         } catch ( Exception e ) {
             logger.error(" Error !!!" + ViewMaintenanceUtilities.getStackTrace(e));

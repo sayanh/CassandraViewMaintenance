@@ -19,6 +19,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.SocketException;
 import java.util.*;
 
 /**
@@ -126,8 +127,14 @@ public class WhereOperation extends GenericOperation {
                                     + targetTableDerivedFromOperationTable);
                             logger.debug("### Fetch Existing rows query ::" + fetchExistingRow);
                             // Fetching existing record from the view table if exists
-                            List<Row> existingRecords = CassandraClientUtilities.commandExecution("localhost",
-                                    fetchExistingRow);
+                            List<Row> existingRecords = null;
+                            try {
+                                existingRecords = CassandraClientUtilities.commandExecution(
+                                        CassandraClientUtilities.getEth0Ip(),
+                                        fetchExistingRow);
+                            } catch ( SocketException e ) {
+                                logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+                            }
                             if ( existingRecords.size() > 0 ) {
                                 Row existingRecord = existingRecords.get(0);
                                 logger.debug("### Existing record ### " + existingRecord);
@@ -171,8 +178,14 @@ public class WhereOperation extends GenericOperation {
                     Column column = ViewMaintenanceUtilities.getColumnObject(whereExpression);
                     if ( column.getTable().getName().equalsIgnoreCase(targetTableDerivedFromOperationTable) ) {
 
-                        List<Row> existingRecords = CassandraClientUtilities.commandExecution("localhost",
-                                fetchExistingRow);
+                        List<Row> existingRecords = null;
+                        try {
+                            existingRecords = CassandraClientUtilities.commandExecution(
+                                    CassandraClientUtilities.getEth0Ip(),
+                                    fetchExistingRow);
+                        } catch ( SocketException e ) {
+                            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+                        }
                         if ( existingRecords != null && existingRecords.size() > 0 ) {
                             Row existingRecord = existingRecords.get(0);
                             logger.debug("### Existing record ### " + existingRecord);
@@ -233,7 +246,11 @@ public class WhereOperation extends GenericOperation {
 
         logger.debug("### Final insert query to where view table:: " + insertQuery);
 
-        CassandraClientUtilities.commandExecution("localhost", insertQuery);
+        try {
+            CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), insertQuery);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
     }
 
     private void updateIntoWhereViewTable(Map<String, List<String>> columnMap, Table whereTable) {
@@ -272,7 +289,11 @@ public class WhereOperation extends GenericOperation {
         updateQuery.append(whereStr);
         logger.debug("### Final update query to where view table :: " + updateQuery.toString());
 
-        CassandraClientUtilities.commandExecution("localhost", updateQuery.toString());
+        try {
+            CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), updateQuery.toString());
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
 
     }
@@ -293,7 +314,11 @@ public class WhereOperation extends GenericOperation {
 
         logger.debug("### Final delete query for where view table :: " + statement.toString());
 
-        CassandraClientUtilities.commandExecution("localhost", statement);
+        try {
+            CassandraClientUtilities.commandExecution(CassandraClientUtilities.getEth0Ip(), statement);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
 
     }
@@ -328,7 +353,12 @@ public class WhereOperation extends GenericOperation {
         }
 
 
-        Row recordTobeDeleted = ViewMaintenanceUtilities.getExistingRecordIfExists(deletePrimaryKey, whereTable);
+        Row recordTobeDeleted = null;
+        try {
+            recordTobeDeleted = ViewMaintenanceUtilities.getExistingRecordIfExists(deletePrimaryKey, whereTable);
+        } catch ( SocketException e ) {
+            logger.error("Error!!! " + ViewMaintenanceUtilities.getStackTrace(e));
+        }
 
         logger.debug("#### Record to be deleted :: " + recordTobeDeleted);
 
