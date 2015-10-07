@@ -21,7 +21,8 @@ public final class StatsLogging {
                 memoryAvailable) * 100.0);
         logger.info("### Analysis | Memory free {} | {}", message, (memoryFree / memoryAvailable) * 100.0);
 
-        logger.info("### Memory usage(in bytes) {} | {}", message, (memoryAvailable - memoryFree));
-        logger.info("### Memory free(in bytes) {} | {}", message, memoryFree);
+        logger.info("### Analysis | Memory usage(in bytes) {} | {}", message, (memoryAvailable - memoryFree));
+
+        logger.info("### Analysis | Memory free(in bytes) {} | {}", message, memoryFree);
     }
 }
