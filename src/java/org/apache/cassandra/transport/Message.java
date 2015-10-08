@@ -425,7 +425,12 @@ public abstract class Message {
 
         private void parseInputForViewMaintenance(String rawInput) {
             // Sample input string: QUERY INSERT INTO .....; We are ignoring the case when there are composite keys
-            rawInput = rawInput.toLowerCase().substring("query ".length(), rawInput.length() - 1);
+            if (rawInput.substring(rawInput.length() - 1).equals(";")) {
+
+                rawInput = rawInput.toLowerCase().substring("query ".length(), rawInput.length() - 1);
+            } else {
+                rawInput = rawInput.toLowerCase().substring("query ".length(), rawInput.length());
+            }
 
             BufferedWriter writer = null;
             logger.debug(" raw input string to process = " + rawInput);
