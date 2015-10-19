@@ -1,6 +1,5 @@
 package de.tum.viewmaintenance.trigger;
 
-import com.datastax.driver.core.Row;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import de.tum.viewmaintenance.Operations.*;
@@ -387,7 +386,7 @@ public class SQLViewMaintenanceTrigger extends TriggerProcess {
                         resultTableCreated);
             }
 
-//            operationQueue.add(resultViewOperation);
+            operationQueue.add(resultViewOperation);
         }
 
         logger.debug("### Operation Queue structure :: " + operationQueue);
