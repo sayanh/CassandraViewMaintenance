@@ -89,13 +89,13 @@ public class MinTrigger extends TriggerProcess {
                     }
                 }
                 insertQueryToView = "insert into " + request.getViewTable().getKeySpace() +
-                        "." + request.getViewTable().getName() + " ( k, min_view1_age, min_view2_age, " +
+                        "." + request.getViewTable().getName() + " ( colaggkey_x, min_view1_age, min_view2_age, " +
                         "min_view3_age) values ( 1, " + minAll + ", " + minGreaterThan + ", " +
                         minLessThan + " )";
 
             } else {
                 insertQueryToView = "insert into " + request.getViewTable().getKeySpace() +
-                        "." + request.getViewTable().getName() + " ( k, min_view1_age, min_view2_age, " +
+                        "." + request.getViewTable().getName() + " ( colaggkey_x, min_view1_age, min_view2_age, " +
                         "min_view3_age) values ( 1, null, null, null )";
             }
 

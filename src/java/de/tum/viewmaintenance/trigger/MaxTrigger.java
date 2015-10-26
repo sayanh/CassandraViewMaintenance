@@ -89,13 +89,13 @@ public class MaxTrigger extends TriggerProcess {
                     }
                 }
                 insertQueryToView = "insert into " + request.getViewTable().getKeySpace() +
-                        "." + request.getViewTable().getName() + " ( k, max_view1_age, max_view2_age, " +
+                        "." + request.getViewTable().getName() + " ( colaggkey_x, max_view1_age, max_view2_age, " +
                         "max_view3_age ) values ( 1, " + maxAll + ", " + maxGreaterThan + ", " +
                         maxLessThan + " )";
 
             } else {
                 insertQueryToView = "insert into " + request.getViewTable().getKeySpace() +
-                        "." + request.getViewTable().getName() + " ( k, max_view1_age, max_view2_age, " +
+                        "." + request.getViewTable().getName() + " ( colaggkey_x, max_view1_age, max_view2_age, " +
                         "max_view3_age ) values ( 1, 0, 0, 0 )";
             }
 

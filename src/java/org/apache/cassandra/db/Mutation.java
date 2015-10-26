@@ -60,14 +60,14 @@ public class Mutation implements IMutation
         this(keyspaceName, key, new HashMap<UUID, ColumnFamily>());
     }
 
-    public Mutation(String keyspaceName, ByteBuffer key, ColumnFamily cf)
-    {
-        this(keyspaceName, key, Collections.singletonMap(cf.id(), cf));
-    }
-
     public Mutation(String keyspaceName, Row row)
     {
         this(keyspaceName, row.key.getKey(), row.cf);
+    }
+
+    public Mutation(String keyspaceName, ByteBuffer key, ColumnFamily cf)
+    {
+        this(keyspaceName, key, Collections.singletonMap(cf.id(), cf));
     }
 
     protected Mutation(String keyspaceName, ByteBuffer key, Map<UUID, ColumnFamily> modifications)
