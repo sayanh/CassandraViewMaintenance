@@ -81,3 +81,4 @@ examples/triggers/module_triggers.xml
 interface/thrift/module_thrift.xml
 test/module_test.xml
 tools/stress/module_stress.xml
+memoryLogs.out
